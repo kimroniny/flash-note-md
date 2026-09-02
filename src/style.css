@@ -158,17 +158,21 @@ button {
 
 .shell {
   display: grid;
-  grid-template-columns: 268px 1fr;
+  grid-template-columns: 268px minmax(0, 1fr);
   min-height: 100%;
 }
 
 html.sidebar-collapsed .shell,
 html.focus-mode .shell {
-  grid-template-columns: 0 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 html.sidebar-collapsed .sidebar,
 html.focus-mode .sidebar {
+  display: none;
+}
+
+.sidebar-backdrop {
   display: none;
 }
 
@@ -422,11 +426,17 @@ html.focus-mode .topbar:hover {
   padding-left: 0;
 }
 
+.block-view .task-list > li:not(.task) {
+  list-style: disc;
+  margin-left: 1.3em;
+}
+
 .block-view .task {
   display: flex;
   gap: 8px;
   align-items: flex-start;
   margin: 4px 0;
+  list-style: none;
 }
 
 .block-view .task.checked span {
@@ -441,12 +451,24 @@ html.focus-mode .topbar:hover {
   border: 1.5px solid var(--accent);
   border-radius: 5px;
   flex-shrink: 0;
-  background: transparent;
+  background: var(--paper);
+  position: relative;
 }
 
 .task.checked .check {
   background: var(--accent);
-  box-shadow: inset 0 0 0 2px var(--paper);
+}
+
+.task.checked .check::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--paper);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .block-view a {
@@ -638,21 +660,55 @@ html.focus-mode .topbar:hover {
 }
 
 @media (max-width: 800px) {
-  .shell {
-    grid-template-columns: 1fr;
+  .shell,
+  html.sidebar-collapsed .shell,
+  html.focus-mode .shell {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  html:not(.sidebar-collapsed):not(.focus-mode) .sidebar {
+  .sidebar {
     position: fixed;
     inset: 0 auto 0 0;
     width: min(84vw, 300px);
-    z-index: 12;
+    max-width: 100%;
+    z-index: 20;
     box-shadow: var(--shadow);
+    transform: translateX(-100%);
+    transition: transform 0.16s ease;
+    display: flex !important;
+    pointer-events: none;
+  }
+
+  html:not(.sidebar-collapsed):not(.focus-mode) .sidebar {
+    transform: none;
+    pointer-events: auto;
+  }
+
+  html.focus-mode .sidebar {
+    display: none !important;
+  }
+
+  html.is-narrow:not(.sidebar-collapsed):not(.focus-mode) .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: color-mix(in srgb, #000 35%, transparent);
   }
 
   .editor-root,
   .md-editor {
-    padding: 8px 18px 30vh;
+    padding: 8px 16px 30vh;
+  }
+
+  .block-view,
+  .block-src {
+    font-size: 16px;
+  }
+
+  .block.kind-h1 .block-src,
+  .block-view h1 {
+    font-size: 26px;
   }
 
   .sheet dl div {

@@ -39,6 +39,13 @@ export type BlockKind =
   | "code"
   | "hr";
 
+const TASK_LINE = /^\s*[-*+]\s*\[([ xX]?)\]\s*(.*)$/;
+const LIST_LINE = /^\s*(?:[-*+](?:\s+|\s*\[[ xX]?\])|\d+\.\s)/;
+
+export function isTaskLine(line: string): boolean {
+  return TASK_LINE.test(line);
+}
+
 export function blockKind(md: string): BlockKind {
   const line = md.split("\n")[0] ?? "";
   if (/^```/.test(line)) return "code";
@@ -46,8 +53,8 @@ export function blockKind(md: string): BlockKind {
   const h = line.match(/^(#{1,6})\s+/);
   if (h) return `h${h[1].length}` as BlockKind;
   if (/^>\s?/.test(line)) return "quote";
-  if (/^\s*[-*+]\s+\[[ xX]\]\s?/.test(line)) return "task";
-  if (/^\s*[-*+]\s+/.test(line)) return "ul";
+  if (md.split("\n").some(isTaskLine)) return "task";
+  if (/^\s*[-*+]\s+/.test(line) || isTaskLine(line)) return "ul";
   if (/^\s*\d+\.\s+/.test(line)) return "ol";
   return "p";
 }
@@ -82,7 +89,7 @@ export function splitBlocks(md: string): string[] {
       blocks.push(lines.slice(start, i).join("\n"));
       continue;
     }
-    if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
+    if (LIST_LINE.test(line)) {
       const start = i;
       i += 1;
       while (
@@ -91,7 +98,7 @@ export function splitBlocks(md: string): string[] {
           ? i + 1 < lines.length &&
             /^\s+/.test(lines[i + 1] ?? "") &&
             (lines[i + 1] ?? "").trim() !== ""
-          : /^\s*([-*+]|\d+\.)\s/.test(lines[i] ?? "") ||
+          : LIST_LINE.test(lines[i] ?? "") ||
             (/^\s{2,}\S/.test(lines[i] ?? "") && !/^```/.test(lines[i] ?? "") && !/^#{1,6}\s+/.test(lines[i] ?? "")))
       ) {
         i += 1;
@@ -107,7 +114,7 @@ export function splitBlocks(md: string): string[] {
       (lines[i] ?? "").trim() !== "" &&
       !/^```/.test(lines[i] ?? "") &&
       !/^#{1,6}\s+/.test(lines[i] ?? "") &&
-      !/^\s*([-*+]|\d+\.)\s/.test(lines[i] ?? "") &&
+      !LIST_LINE.test(lines[i] ?? "") &&
       !/^>\s?/.test(lines[i] ?? "") &&
       !/^(---|\*\*\*|___)\s*$/.test((lines[i] ?? "").trim())
     ) {
@@ -190,24 +197,25 @@ function listItems(md: string, kind: "ul" | "ol" | "task"): string {
   const lines = md.split("\n");
   const items: string[] = [];
   let current = "";
+  let hasTask = kind === "task";
   const push = () => {
     if (!current) return;
     const raw = current.replace(/\n/g, " ").trim();
-    if (kind === "task") {
-      const m = raw.match(/^[-*+]\s+\[([ xX])\]\s?(.*)$/);
-      const checked = m?.[1]?.toLowerCase() === "x";
-      const text = renderInline(m?.[2] ?? raw);
+    const task = raw.match(TASK_LINE);
+    if (task) {
+      hasTask = true;
+      const checked = task[1]?.toLowerCase() === "x";
       items.push(
-        `<li class="task${checked ? " checked" : ""}"><button type="button" class="check" aria-checked="${checked}"></button><span>${text}</span></li>`,
+        `<li class="task${checked ? " checked" : ""}"><button type="button" class="check" aria-label="${checked ? "已完成" : "待办"}" aria-checked="${checked}"></button><span>${renderInline(task[2] ?? "")}</span></li>`,
       );
     } else {
-      const stripped = raw.replace(/^([-*+]|\d+\.)\s+/, "");
+      const stripped = raw.replace(/^([-*+]|\d+\.)\s*/, "");
       items.push(`<li>${renderInline(stripped)}</li>`);
     }
     current = "";
   };
   for (const line of lines) {
-    if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
+    if (LIST_LINE.test(line)) {
       push();
       current = line.trim();
     } else if (current) {
@@ -216,7 +224,7 @@ function listItems(md: string, kind: "ul" | "ol" | "task"): string {
   }
   push();
   const tag = kind === "ol" ? "ol" : "ul";
-  const cls = kind === "task" ? ' class="task-list"' : "";
+  const cls = hasTask ? ' class="task-list"' : "";
   return `<${tag}${cls}>${items.join("")}</${tag}>`;
 }
 
@@ -257,13 +265,14 @@ export function toggleTaskAt(md: string, index: number): string {
   return md
     .split("\n")
     .map((line) => {
-      if (/^\s*[-*+]\s+\[[ xX]\]/.test(line)) {
-        if (n === index) {
-          n += 1;
-          return line.replace(/\[[ xX]\]/, (m) => (m[1] === " " ? "[x]" : "[ ]"));
-        }
+      if (!isTaskLine(line)) return line;
+      if (n === index) {
         n += 1;
+        return line.replace(/\[([ xX]?)\]/, (_, inner: string) =>
+          inner.toLowerCase() === "x" ? "[ ]" : "[x]",
+        );
       }
+      n += 1;
       return line;
     })
     .join("\n");
@@ -272,9 +281,9 @@ export function toggleTaskAt(md: string, index: number): string {
 export function continueList(md: string): { next: string; exit: boolean } {
   const lines = md.split("\n");
   const last = lines[lines.length - 1] ?? "";
-  const task = last.match(/^(\s*)([-*+])\s+\[[ xX]\]\s?(.*)$/);
+  const task = last.match(/^(\s*)([-*+])\s*\[([ xX]?)\]\s*(.*)$/);
   if (task) {
-    if (!(task[3] ?? "").trim()) {
+    if (!(task[4] ?? "").trim()) {
       lines.pop();
       return { next: lines.join("\n"), exit: true };
     }

@@ -74,6 +74,12 @@ export function startApp(host: HTMLElement): void {
   const palette = el("div", { class: "overlay palette", hidden: "" });
   const themePop = el("div", { class: "popover themes", hidden: "" });
   const helpPop = el("div", { class: "overlay help", hidden: "" });
+  const backdrop = el("button", {
+    class: "sidebar-backdrop",
+    type: "button",
+    "data-act": "sidebar-close",
+    "aria-label": "关闭目录",
+  });
 
   const sidebar = el(
     "aside",
@@ -100,7 +106,41 @@ export function startApp(host: HTMLElement): void {
   );
 
   const main = el("div", { class: "main" }, topbar, el("div", { class: "editor-scroll" }, editorRoot));
-  host.append(sidebar, main, themePop, palette, helpPop, toast);
+  host.append(sidebar, main, backdrop, themePop, palette, helpPop, toast);
+
+  const narrowMq = window.matchMedia("(max-width: 800px)");
+  let mobileOpen = false;
+
+  const syncChrome = () => {
+    const narrow = narrowMq.matches;
+    document.documentElement.classList.toggle("is-narrow", narrow);
+    if (narrow) {
+      document.documentElement.classList.toggle("sidebar-collapsed", !mobileOpen);
+    } else {
+      document.documentElement.classList.toggle("sidebar-collapsed", !store.meta().sidebar);
+    }
+  };
+
+  const toggleSidebar = () => {
+    if (narrowMq.matches) {
+      mobileOpen = !mobileOpen;
+      syncChrome();
+    } else {
+      store.setSidebar(!store.meta().sidebar);
+    }
+  };
+
+  const closeMobileSidebar = () => {
+    if (!narrowMq.matches) return;
+    mobileOpen = false;
+    syncChrome();
+  };
+
+  syncChrome();
+  narrowMq.addEventListener("change", () => {
+    mobileOpen = false;
+    syncChrome();
+  });
 
   helpPop.innerHTML = `
     <div class="sheet" role="dialog" aria-label="快捷键">
@@ -369,7 +409,10 @@ export function startApp(host: HTMLElement): void {
 
   listEl.addEventListener("click", (e) => {
     const id = (e.target as HTMLElement).closest("[data-id]")?.getAttribute("data-id");
-    if (id) openNote(id);
+    if (id) {
+      openNote(id);
+      closeMobileSidebar();
+    }
   });
 
   search.addEventListener("input", () => {
@@ -380,8 +423,12 @@ export function startApp(host: HTMLElement): void {
   host.addEventListener("click", (e) => {
     const act = (e.target as HTMLElement).closest("[data-act]")?.getAttribute("data-act");
     if (!act) return;
-    if (act === "new") newMeeting();
-    if (act === "sidebar") store.setSidebar(!store.meta().sidebar);
+    if (act === "new") {
+      newMeeting();
+      closeMobileSidebar();
+    }
+    if (act === "sidebar") toggleSidebar();
+    if (act === "sidebar-close") closeMobileSidebar();
     if (act === "theme") {
       const on = themePop.hidden;
       closeOverlays();
@@ -427,6 +474,7 @@ export function startApp(host: HTMLElement): void {
     const key = e.key.toLowerCase();
     if (e.key === "Escape") {
       closeOverlays();
+      closeMobileSidebar();
       editor?.focus();
       return;
     }
@@ -447,7 +495,7 @@ export function startApp(host: HTMLElement): void {
       openPalette();
     } else if (key === "\\") {
       e.preventDefault();
-      store.setSidebar(!store.meta().sidebar);
+      toggleSidebar();
     } else if (key === "s") {
       e.preventDefault();
       persist(true);
