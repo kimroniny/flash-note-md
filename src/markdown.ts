@@ -1,0 +1,300 @@
+export function nowStamp(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function meetingTemplate(d = new Date()): string {
+  return `# 会议 ${nowStamp(d)}\n\n`;
+}
+
+export function titleFromMarkdown(md: string): string {
+  for (const raw of md.split("\n")) {
+    const line = raw.trim();
+    if (!line || line === "---" || line === "***" || line === "___") continue;
+    const cleaned = line
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/^>\s*/, "")
+      .replace(/^[-*+]\s+\[[ xX]\]\s+/, "")
+      .replace(/^[-*+]\s+/, "")
+      .replace(/^\d+\.\s+/, "")
+      .replace(/[*_`~]/g, "")
+      .trim();
+    if (cleaned) return cleaned.slice(0, 56);
+  }
+  return "未命名会议";
+}
+
+export type BlockKind =
+  | "p"
+  | "h1"
+  | "h2"
+  | "h3"
+  | "h4"
+  | "h5"
+  | "h6"
+  | "ul"
+  | "ol"
+  | "task"
+  | "quote"
+  | "code"
+  | "hr";
+
+export function blockKind(md: string): BlockKind {
+  const line = md.split("\n")[0] ?? "";
+  if (/^```/.test(line)) return "code";
+  if (/^(---|\*\*\*|___)\s*$/.test(line.trim())) return "hr";
+  const h = line.match(/^(#{1,6})\s+/);
+  if (h) return `h${h[1].length}` as BlockKind;
+  if (/^>\s?/.test(line)) return "quote";
+  if (/^\s*[-*+]\s+\[[ xX]\]\s?/.test(line)) return "task";
+  if (/^\s*[-*+]\s+/.test(line)) return "ul";
+  if (/^\s*\d+\.\s+/.test(line)) return "ol";
+  return "p";
+}
+
+export function splitBlocks(md: string): string[] {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (/^```/.test(line)) {
+      const start = i;
+      i += 1;
+      while (i < lines.length && !/^```/.test(lines[i] ?? "")) i += 1;
+      if (i < lines.length) i += 1;
+      blocks.push(lines.slice(start, i).join("\n"));
+      continue;
+    }
+    if (line.trim() === "") {
+      i += 1;
+      continue;
+    }
+    if (/^(---|\*\*\*|___)\s*$/.test(line.trim()) || /^#{1,6}\s+/.test(line)) {
+      blocks.push(line);
+      i += 1;
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const start = i;
+      i += 1;
+      while (i < lines.length && /^>\s?/.test(lines[i] ?? "")) i += 1;
+      blocks.push(lines.slice(start, i).join("\n"));
+      continue;
+    }
+    if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
+      const start = i;
+      i += 1;
+      while (
+        i < lines.length &&
+        (lines[i]?.trim() === ""
+          ? i + 1 < lines.length &&
+            /^\s+/.test(lines[i + 1] ?? "") &&
+            (lines[i + 1] ?? "").trim() !== ""
+          : /^\s*([-*+]|\d+\.)\s/.test(lines[i] ?? "") ||
+            (/^\s{2,}\S/.test(lines[i] ?? "") && !/^```/.test(lines[i] ?? "") && !/^#{1,6}\s+/.test(lines[i] ?? "")))
+      ) {
+        i += 1;
+      }
+      const chunk = lines.slice(start, i).join("\n").replace(/\n+$/, "");
+      blocks.push(chunk);
+      continue;
+    }
+    const start = i;
+    i += 1;
+    while (
+      i < lines.length &&
+      (lines[i] ?? "").trim() !== "" &&
+      !/^```/.test(lines[i] ?? "") &&
+      !/^#{1,6}\s+/.test(lines[i] ?? "") &&
+      !/^\s*([-*+]|\d+\.)\s/.test(lines[i] ?? "") &&
+      !/^>\s?/.test(lines[i] ?? "") &&
+      !/^(---|\*\*\*|___)\s*$/.test((lines[i] ?? "").trim())
+    ) {
+      i += 1;
+    }
+    blocks.push(lines.slice(start, i).join("\n"));
+  }
+  if (blocks.length === 0) blocks.push("");
+  if (/(?:\n[ \t]*){2,}$/.test(md) && (blocks[blocks.length - 1] ?? "") !== "") {
+    blocks.push("");
+  }
+  return blocks;
+}
+
+export function joinBlocks(blocks: string[]): string {
+  return blocks
+    .map((b) => b.replace(/\s+$/, ""))
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderInline(src: string): string {
+  const parts: string[] = [];
+  let i = 0;
+  while (i < src.length) {
+    if (src[i] === "`") {
+      const end = src.indexOf("`", i + 1);
+      if (end > i) {
+        parts.push(`<code>${escapeHtml(src.slice(i + 1, end))}</code>`);
+        i = end + 1;
+        continue;
+      }
+    }
+    const rest = src.slice(i);
+    const link = rest.match(/^\[([^\]]+)\]\(([^)\s]+)\)/);
+    if (link) {
+      parts.push(
+        `<a href="${escapeHtml(link[2])}" target="_blank" rel="noreferrer">${renderInline(link[1])}</a>`,
+      );
+      i += link[0].length;
+      continue;
+    }
+    const hi = rest.match(/^==([^=]+)==/);
+    if (hi) {
+      parts.push(`<mark>${renderInline(hi[1])}</mark>`);
+      i += hi[0].length;
+      continue;
+    }
+    const strike = rest.match(/^~~([^~]+)~~/);
+    if (strike) {
+      parts.push(`<del>${renderInline(strike[1])}</del>`);
+      i += strike[0].length;
+      continue;
+    }
+    const bold = rest.match(/^\*\*(.+?)\*\*/);
+    if (bold) {
+      parts.push(`<strong>${renderInline(bold[1])}</strong>`);
+      i += bold[0].length;
+      continue;
+    }
+    const italic = rest.match(/^\*(.+?)\*/);
+    if (italic) {
+      parts.push(`<em>${renderInline(italic[1])}</em>`);
+      i += italic[0].length;
+      continue;
+    }
+    let j = i + 1;
+    while (j < src.length && !"`*[~=".includes(src[j] ?? "")) j += 1;
+    parts.push(escapeHtml(src.slice(i, j)));
+    i = j;
+  }
+  return parts.join("");
+}
+
+function listItems(md: string, kind: "ul" | "ol" | "task"): string {
+  const lines = md.split("\n");
+  const items: string[] = [];
+  let current = "";
+  const push = () => {
+    if (!current) return;
+    const raw = current.replace(/\n/g, " ").trim();
+    if (kind === "task") {
+      const m = raw.match(/^[-*+]\s+\[([ xX])\]\s?(.*)$/);
+      const checked = m?.[1]?.toLowerCase() === "x";
+      const text = renderInline(m?.[2] ?? raw);
+      items.push(
+        `<li class="task${checked ? " checked" : ""}"><button type="button" class="check" aria-checked="${checked}"></button><span>${text}</span></li>`,
+      );
+    } else {
+      const stripped = raw.replace(/^([-*+]|\d+\.)\s+/, "");
+      items.push(`<li>${renderInline(stripped)}</li>`);
+    }
+    current = "";
+  };
+  for (const line of lines) {
+    if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
+      push();
+      current = line.trim();
+    } else if (current) {
+      current += ` ${line.trim()}`;
+    }
+  }
+  push();
+  const tag = kind === "ol" ? "ol" : "ul";
+  const cls = kind === "task" ? ' class="task-list"' : "";
+  return `<${tag}${cls}>${items.join("")}</${tag}>`;
+}
+
+export function renderBlock(md: string): { html: string; kind: BlockKind } {
+  const kind = blockKind(md);
+  if (kind === "hr") return { html: "<hr />", kind };
+  if (kind === "code") {
+    const lines = md.split("\n");
+    const lang = (lines[0] ?? "").replace(/^```/, "").trim();
+    const end = lines.length > 1 && /^```/.test(lines[lines.length - 1] ?? "") ? lines.length - 1 : lines.length;
+    const body = escapeHtml(lines.slice(1, end).join("\n"));
+    return {
+      html: `<pre><code data-lang="${escapeHtml(lang)}">${body}</code></pre>`,
+      kind,
+    };
+  }
+  if (kind.startsWith("h")) {
+    const m = md.match(/^(#{1,6})\s+(.*)$/);
+    const level = m?.[1].length ?? 1;
+    return { html: `<h${level}>${renderInline(m?.[2] ?? md)}</h${level}>`, kind };
+  }
+  if (kind === "quote") {
+    const text = md
+      .split("\n")
+      .map((l) => l.replace(/^>\s?/, ""))
+      .join("\n");
+    return { html: `<blockquote>${renderInline(text)}</blockquote>`, kind };
+  }
+  if (kind === "ul" || kind === "ol" || kind === "task") {
+    return { html: listItems(md, kind), kind };
+  }
+  const paras = md.split("\n").map((l) => renderInline(l)).join("<br />");
+  return { html: `<p>${paras || "<br />"}</p>`, kind };
+}
+
+export function toggleTaskAt(md: string, index: number): string {
+  let n = 0;
+  return md
+    .split("\n")
+    .map((line) => {
+      if (/^\s*[-*+]\s+\[[ xX]\]/.test(line)) {
+        if (n === index) {
+          n += 1;
+          return line.replace(/\[[ xX]\]/, (m) => (m[1] === " " ? "[x]" : "[ ]"));
+        }
+        n += 1;
+      }
+      return line;
+    })
+    .join("\n");
+}
+
+export function continueList(md: string): { next: string; exit: boolean } {
+  const lines = md.split("\n");
+  const last = lines[lines.length - 1] ?? "";
+  const task = last.match(/^(\s*)([-*+])\s+\[[ xX]\]\s?(.*)$/);
+  if (task) {
+    if (!(task[3] ?? "").trim()) {
+      lines.pop();
+      return { next: lines.join("\n"), exit: true };
+    }
+    return { next: `${md}\n${task[1]}${task[2]} [ ] `, exit: false };
+  }
+  const ul = last.match(/^(\s*)([-*+])\s+(.*)$/);
+  if (ul) {
+    if (!(ul[3] ?? "").trim()) {
+      lines.pop();
+      return { next: lines.join("\n"), exit: true };
+    }
+    return { next: `${md}\n${ul[1]}${ul[2]} `, exit: false };
+  }
+  const ol = last.match(/^(\s*)(\d+)\.\s+(.*)$/);
+  if (ol) {
+    if (!(ol[3] ?? "").trim()) {
+      lines.pop();
+      return { next: lines.join("\n"), exit: true };
+    }
+    return { next: `${md}\n${ol[1]}${Number(ol[2]) + 1}. `, exit: false };
+  }
+  return { next: md, exit: true };
+}

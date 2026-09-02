@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="paper">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#e25822" />
+    <meta name="description" content="开会时立刻打开、立刻记录的 Markdown 笔记" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>闪记</title>
+    <script>
+      try {
+        var meta = JSON.parse(localStorage.getItem("flashnote.v1.meta") || "{}");
+        if (meta.theme) document.documentElement.setAttribute("data-theme", meta.theme);
+        if (meta.sidebar === false) document.documentElement.classList.add("sidebar-collapsed");
+        if (meta.focus) document.documentElement.classList.add("focus-mode");
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

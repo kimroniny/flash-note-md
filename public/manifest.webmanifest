@@ -1,0 +1,17 @@
+{
+  "name": "闪记",
+  "short_name": "闪记",
+  "description": "开会时立刻打开的 Markdown 笔记",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f1e8",
+  "theme_color": "#e25822",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
