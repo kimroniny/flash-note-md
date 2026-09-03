@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf16"
 )
 
 type note struct {
@@ -111,7 +110,19 @@ func writeNoteFile(name, content string) error {
 	_ = ensureNotesDir()
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	content = strings.ReplaceAll(content, "\n", "\r\n")
-	return os.WriteFile(filepath.Join(notesDir(), name), []byte(content), 0o644)
+	path := filepath.Join(notesDir(), name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(content), 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(path)
+		if err2 := os.Rename(tmp, path); err2 != nil {
+			_ = os.Remove(tmp)
+			return err
+		}
+	}
+	return nil
 }
 
 func newNoteFile() (string, error) {
@@ -149,18 +160,4 @@ func loadConfig() (last, theme string) {
 func saveConfig(last, theme string) {
 	_ = os.MkdirAll(dataRoot(), 0o755)
 	_ = os.WriteFile(filepath.Join(dataRoot(), "config.txt"), []byte("last="+last+"\ntheme="+theme+"\n"), 0o644)
-}
-
-func utf16Len(s string) int {
-	return len(utf16.Encode([]rune(s)))
-}
-
-func byteToUTF16(s string, byteOff int) int {
-	if byteOff <= 0 {
-		return 0
-	}
-	if byteOff > len(s) {
-		byteOff = len(s)
-	}
-	return utf16Len(s[:byteOff])
 }

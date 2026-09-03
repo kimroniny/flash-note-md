@@ -1,6 +1,6 @@
 # 闪记
 
-支持 Markdown 的 Windows 记事本：像 txt 一样秒开、自带滚动条，笔记就是本地 `.md` 文件。
+支持 Markdown 的 Windows 记事本：像 txt 一样秒开、自带滚动条，笔记就是本地 `.md` 文件。编辑控件与记事本相同，打字时不会整页重绘。
 
 ## Windows 安装
 

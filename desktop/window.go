@@ -22,19 +22,18 @@ type appState struct {
 	notes                            []note
 	current                          string
 	themeID                          string
-	coloring                         bool
+	alive                            bool
+	busy                             bool
 	wndProc                          uintptr
 }
 
 var app appState
 
 func runApp() error {
-	if err := mustLoadMsftedit(); err != nil {
-		return err
-	}
 	if err := ensureNotesDir(); err != nil {
 		return err
 	}
+	app.alive = true
 
 	_, _, _ = user32.NewProc("SetProcessDPIAware").Call()
 
@@ -47,9 +46,11 @@ func runApp() error {
 	cursor, _, _ := pLoadCursorW.Call(0, uintptr(idcArrow))
 	t := themeByID("paper")
 	app.brBg, _, _ = pCreateSolidBrush.Call(uintptr(t.Bg))
-	app.font = makeFont(-18, false, "Microsoft YaHei UI")
-	app.fontSmall = makeFont(-15, false, "Microsoft YaHei UI")
+	app.brSide, _, _ = pCreateSolidBrush.Call(uintptr(t.SideBg))
+	app.font = makeFont(-20, false, "Microsoft YaHei UI")
+	app.fontSmall = makeFont(-16, false, "Microsoft YaHei UI")
 
+	sysBg, _, _ := pGetSysColorBrush.Call(5) // COLOR_WINDOW, do not delete
 	cls := wndClassEx{
 		CbSize:        uint32(unsafe.Sizeof(wndClassEx{})),
 		LpfnWndProc:   app.wndProc,
@@ -57,7 +58,7 @@ func runApp() error {
 		HIcon:         windows.Handle(icon),
 		HIconSm:       windows.Handle(icon),
 		HCursor:       windows.Handle(cursor),
-		HbrBackground: windows.Handle(app.brBg),
+		HbrBackground: windows.Handle(sysBg),
 		LpszClassName: utf16Ptr(windowClass),
 	}
 	_, _, _ = pRegisterClassExW.Call(uintptr(unsafe.Pointer(&cls)))
@@ -89,13 +90,12 @@ func runApp() error {
 	applyTheme(themeByID(themeID))
 	refreshList("")
 	if last == "" || readOpen(last) != nil {
-		name, err := newNoteFile()
-		if err != nil {
-			return err
+		name, nerr := newNoteFile()
+		if nerr != nil {
+			return nerr
 		}
-		last = name
 		refreshList("")
-		_ = readOpen(last)
+		_ = readOpen(name)
 	}
 	layout()
 	_, _, _ = pShowWindow.Call(h, swShow)
@@ -139,30 +139,30 @@ func buildMenu(hwnd uintptr) {
 }
 
 func createChildren(parent uintptr) {
-	editStyle := uintptr(wsChild | wsVisible | wsVScroll | wsBorder | wsTabStop | wsClipSiblings |
-		esMultiline | esAutovscroll | esWantReturn | esNoHideSel | esDisableNoScrl)
+	// Same control class as notepad.exe: multiline EDIT with a real vertical scrollbar.
+	editStyle := uintptr(wsChild | wsVisible | wsVScroll | wsTabStop | wsClipSiblings |
+		esMultiline | esAutovscroll | esWantReturn | esNoHideSel)
 	app.edit, _, _ = pCreateWindowExW.Call(
 		wsExClientEdge,
-		uintptr(unsafe.Pointer(utf16Ptr("RICHEDIT50W"))),
+		uintptr(unsafe.Pointer(utf16Ptr("EDIT"))),
 		0,
 		editStyle,
 		0, 0, 100, 100,
 		parent, idEdit, uintptr(app.hInst), 0,
 	)
-	send(app.edit, emExLimitText, 0, 4*1024*1024)
-	send(app.edit, emSetEventMask, 0, enmChange)
-	send(app.edit, 0x0030, uintptr(app.font), 1)
+	send(app.edit, emLimitText, 0x7FFFFFFE, 0)
+	send(app.edit, wmSetFont, uintptr(app.font), 1)
 
 	app.filter, _, _ = pCreateWindowExW.Call(
 		wsExClientEdge,
 		uintptr(unsafe.Pointer(utf16Ptr("EDIT"))),
 		0,
-		wsChild|wsVisible|wsBorder|esAutohscroll|wsTabStop,
+		wsChild|wsVisible|esAutohscroll|wsTabStop,
 		0, 0, 100, 28,
 		parent, idFilter, uintptr(app.hInst), 0,
 	)
-	send(app.filter, 0x0030, uintptr(app.fontSmall), 1)
-	send(app.filter, 0x1501, 1, uintptr(unsafe.Pointer(utf16Ptr("搜索笔记"))))
+	send(app.filter, wmSetFont, uintptr(app.fontSmall), 1)
+	send(app.filter, emSetCueBanner, 1, uintptr(unsafe.Pointer(utf16Ptr("搜索笔记"))))
 
 	app.newBtn, _, _ = pCreateWindowExW.Call(
 		0,
@@ -172,7 +172,7 @@ func createChildren(parent uintptr) {
 		0, 0, 100, 28,
 		parent, idNewBtn, uintptr(app.hInst), 0,
 	)
-	send(app.newBtn, 0x0030, uintptr(app.fontSmall), 1)
+	send(app.newBtn, wmSetFont, uintptr(app.fontSmall), 1)
 
 	app.list, _, _ = pCreateWindowExW.Call(
 		wsExClientEdge,
@@ -182,12 +182,15 @@ func createChildren(parent uintptr) {
 		0, 0, 100, 100,
 		parent, idList, uintptr(app.hInst), 0,
 	)
-	send(app.list, 0x0030, uintptr(app.fontSmall), 1)
+	send(app.list, wmSetFont, uintptr(app.fontSmall), 1)
 }
 
 func layout() {
+	if app.hwnd == 0 || app.edit == 0 {
+		return
+	}
 	cw, ch := getClient(app.hwnd)
-	if cw <= 0 {
+	if cw <= 40 || ch <= 40 {
 		return
 	}
 	side := int32(240)
@@ -198,19 +201,10 @@ func layout() {
 	_, _, _ = pMoveWindow.Call(app.newBtn, uintptr(side-pad-68), uintptr(pad), 68, uintptr(btnH), 1)
 	_, _, _ = pMoveWindow.Call(app.list, uintptr(pad), uintptr(pad*2+btnH), uintptr(side-pad*2), uintptr(ch-pad*3-btnH), 1)
 	_, _, _ = pMoveWindow.Call(app.edit, uintptr(side), 0, uintptr(cw-side), uintptr(ch), 1)
-	send(app.edit, emSetTargetDevice, 0, 1)
 }
 
 func messageLoop(hwnd uintptr) error {
-	var msg struct {
-		Hwnd    uintptr
-		Message uint32
-		WParam  uintptr
-		LParam  uintptr
-		Time    uint32
-		Pt      struct{ X, Y int32 }
-		Private uint32
-	}
+	var msg winMsg
 	for {
 		r, _, _ := pGetMessageW.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
 		if int32(r) <= 0 {
@@ -227,24 +221,40 @@ func messageLoop(hwnd uintptr) error {
 	}
 }
 
+func killTimers(hwnd uintptr) {
+	_, _, _ = pKillTimer.Call(hwnd, timerSave)
+}
+
+func shutdown(hwnd uintptr) {
+	if !app.alive {
+		return
+	}
+	killTimers(hwnd)
+	_ = saveCurrent()
+	saveConfig(app.current, app.themeID)
+	app.alive = false
+	_, _, _ = pDestroyWindow.Call(hwnd)
+}
+
 func mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
+	defer func() { _ = recover() }()
 	switch msg {
 	case wmSize:
-		if app.edit != 0 {
-			layout()
-		}
+		layout()
 		return 0
 	case wmTimer:
-		if wParam == timerColor {
-			_, _, _ = pKillTimer.Call(hwnd, timerColor)
-			colorMarkdown()
+		if !app.alive {
+			return 0
 		}
 		if wParam == timerSave {
-			_, _, _ = pKillTimer.Call(hwnd, timerSave)
+			killTimers(hwnd)
 			_ = saveCurrent()
 		}
 		return 0
 	case wmCommand:
+		if !app.alive || app.busy {
+			return 0
+		}
 		id := loWord(wParam)
 		note := hiWord(wParam)
 		switch id {
@@ -253,7 +263,7 @@ func mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 		case cmdSave:
 			_ = saveCurrent()
 		case cmdQuit:
-			_, _, _ = pDestroyWindow.Call(hwnd)
+			shutdown(hwnd)
 		case cmdTime:
 			insertTime()
 		case cmdHelp:
@@ -266,22 +276,23 @@ func mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 			}
 		case idList:
 			if note == lbnSelChange {
-				sel := int(send(app.list, 0x0188, 0, 0))
-				if sel >= 0 && sel < len(app.notes) {
-					_ = saveCurrent()
-					_ = readOpen(app.notes[sel].File)
+				sel := int32(send(app.list, lbGetCurSel, 0, 0))
+				if sel >= 0 && int(sel) < len(app.notes) {
+					name := app.notes[sel].File
+					if name != app.current {
+						_ = saveCurrent()
+						_ = readOpen(name)
+					}
 				}
 			}
 		case idEdit:
-			if note == enChange && !app.coloring {
-				_, _, _ = pSetTimer.Call(hwnd, timerColor, 90, 0)
-				_, _, _ = pSetTimer.Call(hwnd, timerSave, 180, 0)
+			if note == enChange {
+				_, _, _ = pSetTimer.Call(hwnd, timerSave, 800, 0)
 			}
 		default:
 			if id >= cmdTheme && int(id-cmdTheme) < len(themes) {
 				app.themeID = themes[id-cmdTheme].ID
 				applyTheme(themeByID(app.themeID))
-				colorMarkdown()
 				saveConfig(app.current, app.themeID)
 			}
 		}
@@ -291,21 +302,19 @@ func mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 		hdc := wParam
 		_, _, _ = pSetTextColor.Call(hdc, uintptr(t.Fg))
 		bg := t.SideBg
+		br := app.brSide
 		if lParam == app.edit {
 			bg = t.Bg
+			br = app.brBg
 		}
 		_, _, _ = pSetBkColor.Call(hdc, uintptr(bg))
-		if lParam == app.list || lParam == app.filter {
-			return app.brSide
-		}
-		return app.brBg
+		return br
 	case wmClose:
-		_ = saveCurrent()
-		saveConfig(app.current, app.themeID)
-		_, _, _ = pDestroyWindow.Call(hwnd)
+		shutdown(hwnd)
 		return 0
 	case wmDestroy:
-		_ = saveCurrent()
+		app.alive = false
+		killTimers(hwnd)
 		_, _, _ = pPostQuitMessage.Call(0)
 		return 0
 	}
@@ -315,88 +324,26 @@ func mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 
 func applyTheme(t theme) {
 	if app.brBg != 0 {
-		_, _, _ = pDeleteObject.Call(uintptr(app.brBg))
-	}
-	if app.brSide != 0 {
-		_, _, _ = pDeleteObject.Call(uintptr(app.brSide))
+		// Keep the previous brush until process exit. Deleting a brush still
+		// referenced by a window class/control can crash GDI.
 	}
 	app.brBg, _, _ = pCreateSolidBrush.Call(uintptr(t.Bg))
 	app.brSide, _, _ = pCreateSolidBrush.Call(uintptr(t.SideBg))
-	send(app.edit, emSetBkgndColor, 0, uintptr(t.Bg))
-	_, _, _ = pInvalidateRect.Call(app.hwnd, 0, 1)
-}
-
-func defaultFormat() charFormat {
-	t := themeByID(app.themeID)
-	cf := charFormat{
-		DwMask:      cfmSize | cfmColor | cfmFace | cfmBold,
-		YHeight:     220,
-		CrTextColor: t.Fg,
-		BCharSet:    1,
-		SzFaceName:  faceName("Microsoft YaHei UI"),
+	if app.hwnd != 0 {
+		_, _, _ = pInvalidateRect.Call(app.hwnd, 0, 1)
 	}
-	cf.CbSize = uint32(unsafe.Sizeof(cf))
-	return cf
-}
-
-func applyRange(start, end int, kind int) {
-	if end <= start {
-		return
+	if app.edit != 0 {
+		_, _, _ = pInvalidateRect.Call(app.edit, 0, 1)
 	}
-	t := themeByID(app.themeID)
-	cf := defaultFormat()
-	switch kind {
-	case kindH1:
-		cf.YHeight = 360
-		cf.DwEffects = cfeBold
-		cf.CrTextColor = t.H1
-	case kindH2:
-		cf.YHeight = 280
-		cf.DwEffects = cfeBold
-		cf.CrTextColor = t.H1
-	case kindH3:
-		cf.YHeight = 240
-		cf.DwEffects = cfeBold
-	case kindBold:
-		cf.DwEffects = cfeBold
-		cf.CrTextColor = t.Accent
-	case kindCode:
-		cf.SzFaceName = faceName("Consolas")
-		cf.CrTextColor = t.Code
-		cf.YHeight = 200
-	case kindQuote:
-		cf.CrTextColor = t.Quote
-	case kindList:
-		cf.CrTextColor = t.Fg
-	}
-	cr := charRange{Min: int32(start), Max: int32(end)}
-	send(app.edit, emExSetSel, 0, uintptr(unsafe.Pointer(&cr)))
-	send(app.edit, emSetCharFormat, scfSelection, uintptr(unsafe.Pointer(&cf)))
-}
-
-func colorMarkdown() {
-	if app.edit == 0 {
-		return
-	}
-	app.coloring = true
-	defer func() { app.coloring = false }()
-	var saved charRange
-	send(app.edit, emExGetSel, 0, uintptr(unsafe.Pointer(&saved)))
-	send(app.edit, emHideSelection, 1, 0)
-	text := getRichText(app.edit)
-	cf := defaultFormat()
-	send(app.edit, emSetCharFormat, scfAll, uintptr(unsafe.Pointer(&cf)))
-	if utf16Len(text) < 80000 {
-		for _, sp := range markdownSpans(text) {
-			applyRange(sp.Start, sp.End, sp.Kind)
-		}
-	}
-	send(app.edit, emExSetSel, 0, uintptr(unsafe.Pointer(&saved)))
-	send(app.edit, emHideSelection, 0, 0)
 }
 
 func refreshList(q string) {
-	send(app.list, 0x0184, 0, 0)
+	if app.list == 0 {
+		return
+	}
+	app.busy = true
+	defer func() { app.busy = false }()
+	send(app.list, lbResetContent, 0, 0)
 	all := listNotes()
 	q = strings.ToLower(strings.TrimSpace(q))
 	sel := 0
@@ -407,7 +354,7 @@ func refreshList(q string) {
 			continue
 		}
 		filtered = append(filtered, n)
-		send(app.list, 0x0180, 0, uintptr(unsafe.Pointer(utf16Ptr(n.Title))))
+		send(app.list, lbAddString, 0, uintptr(unsafe.Pointer(utf16Ptr(n.Title))))
 		if n.File == app.current {
 			sel = shown
 		}
@@ -415,7 +362,7 @@ func refreshList(q string) {
 	}
 	app.notes = filtered
 	if shown > 0 {
-		send(app.list, 0x0186, uintptr(sel), 0)
+		send(app.list, lbSetCurSel, uintptr(sel), 0)
 	}
 }
 
@@ -424,11 +371,10 @@ func readOpen(name string) error {
 	if err != nil {
 		return err
 	}
+	app.busy = true
 	app.current = name
-	app.coloring = true
 	setText(app.edit, strings.ReplaceAll(body, "\n", "\r\n"))
-	app.coloring = false
-	colorMarkdown()
+	app.busy = false
 	setText(app.hwnd, titleFromMarkdown(body)+" - "+appName)
 	saveConfig(app.current, app.themeID)
 	_, _, _ = pSetFocus.Call(app.edit)
@@ -437,10 +383,10 @@ func readOpen(name string) error {
 }
 
 func saveCurrent() error {
-	if app.current == "" || app.edit == 0 {
+	if !app.alive || app.current == "" || app.edit == 0 {
 		return nil
 	}
-	body := strings.ReplaceAll(getRichText(app.edit), "\r\n", "\n")
+	body := strings.ReplaceAll(getText(app.edit), "\r\n", "\n")
 	if err := writeNoteFile(app.current, body); err != nil {
 		return err
 	}
@@ -460,12 +406,16 @@ func newMeeting() {
 }
 
 func insertTime() {
+	if app.edit == 0 {
+		return
+	}
 	stamp := nowStamp(time.Now())
-	send(app.edit, 0x00C2, 1, uintptr(unsafe.Pointer(utf16Ptr(stamp))))
+	send(app.edit, emReplaceSel, 1, uintptr(unsafe.Pointer(utf16Ptr(stamp))))
 }
 
 func moveCaretEnd() {
-	send(app.edit, emExSetSel, 0, uintptr(unsafe.Pointer(&charRange{Min: -1, Max: -1})))
+	n := send(app.edit, 0x000E, 0, 0) // WM_GETTEXTLENGTH
+	send(app.edit, emSetSel, n, n)
 }
 
 func alertHelp() {
