@@ -16,12 +16,17 @@ export type EditorHandle = {
 };
 
 type Options = {
-  onChange: (md: string) => void;
+  onChange: () => void;
 };
 
 function autosize(el: HTMLTextAreaElement): void {
-  el.style.height = "0px";
-  el.style.height = `${Math.max(el.scrollHeight, 28)}px`;
+  if (el.dataset.sizing === "1") return;
+  el.dataset.sizing = "1";
+  requestAnimationFrame(() => {
+    delete el.dataset.sizing;
+    el.style.height = "0px";
+    el.style.height = `${Math.max(el.scrollHeight, 28)}px`;
+  });
 }
 
 function kindClass(kind: BlockKind): string {
@@ -32,12 +37,13 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
   let blocks: string[] = [""];
   let editing = -1;
   let destroyed = false;
+  let composing = false;
 
   root.classList.add("md-editor");
   root.replaceChildren();
 
   const emit = () => {
-    if (!destroyed) options.onChange(joinBlocks(blocks));
+    if (!destroyed) options.onChange();
   };
 
   const makeView = (md: string): HTMLElement => {
@@ -133,6 +139,18 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     emit();
   };
 
+  root.addEventListener("compositionstart", () => {
+    composing = true;
+  });
+  root.addEventListener("compositionend", (e) => {
+    composing = false;
+    const ta = e.target;
+    if (ta instanceof HTMLTextAreaElement && editing >= 0) {
+      blocks[editing] = ta.value;
+      emit();
+    }
+  });
+
   root.addEventListener("pointerdown", (e) => {
     const t = e.target as HTMLElement;
     const check = t.closest(".check");
@@ -173,7 +191,8 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     const kind = blockKind(ta.value);
     if (ta.parentElement) ta.parentElement.className = `block editing ${kindClass(kind)}`;
     autosize(ta);
-    emit();
+    const ie = e as InputEvent;
+    if (!composing && !ie.isComposing) emit();
   });
 
   root.addEventListener("keydown", (e) => {
@@ -270,7 +289,8 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
 
   return {
     getMarkdown() {
-      if (editing >= 0) commitEdit(true);
+      const ta = currentTextarea();
+      if (ta && editing >= 0) blocks[editing] = ta.value;
       return joinBlocks(blocks);
     },
     setMarkdown(md: string, focusEnd = false) {

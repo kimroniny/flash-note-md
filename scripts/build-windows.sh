@@ -3,6 +3,10 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
+npm run build
+rm -rf desktop/dist
+cp -a dist desktop/dist
+
 export PATH="$PATH:$HOME/go/bin:$HOME/.local/go/bin"
 if ! command -v go-winres >/dev/null 2>&1; then
   go install github.com/tc-hib/go-winres@latest

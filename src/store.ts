@@ -40,13 +40,17 @@ function writeMeta(meta: Meta): void {
   localStorage.setItem(META_KEY, JSON.stringify(meta));
 }
 
+const noteCache = new Map<string, Note>();
+
 function readNote(id: string): Note | null {
+  const hit = noteCache.get(id);
+  if (hit) return hit;
   try {
     const raw = localStorage.getItem(noteKey(id));
     if (!raw) return null;
     const n = JSON.parse(raw) as Note;
     if (!n || typeof n.id !== "string") return null;
-    return {
+    const note: Note = {
       id: n.id,
       title: typeof n.title === "string" && n.title ? n.title : "未命名会议",
       content: typeof n.content === "string" ? n.content : "",
@@ -54,9 +58,16 @@ function readNote(id: string): Note | null {
       updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : Date.now(),
       pinned: n.pinned === true,
     };
+    noteCache.set(id, note);
+    return note;
   } catch {
     return null;
   }
+}
+
+function writeNote(note: Note): void {
+  noteCache.set(note.id, note);
+  localStorage.setItem(noteKey(note.id), JSON.stringify(note));
 }
 
 let meta = readMeta();
@@ -119,7 +130,7 @@ export const store = {
       updatedAt: t,
       pinned: false,
     };
-    localStorage.setItem(noteKey(note.id), JSON.stringify(note));
+    writeNote(note);
     meta = { ...meta, ids: [note.id, ...meta.ids.filter((id) => id !== note.id)], lastId: note.id };
     writeMeta(meta);
     return note;
@@ -128,14 +139,24 @@ export const store = {
   save(id: string, patch: Partial<Pick<Note, "title" | "content" | "pinned">>): Note | null {
     const prev = readNote(id);
     if (!prev) return null;
+    const title = patch.title !== undefined ? patch.title : prev.title;
+    const content = patch.content !== undefined ? patch.content : prev.content;
+    const pinned = patch.pinned !== undefined ? patch.pinned : prev.pinned;
+    if (title === prev.title && content === prev.content && pinned === prev.pinned) {
+      return prev;
+    }
     const next: Note = {
       ...prev,
-      ...patch,
+      title,
+      content,
+      pinned,
       updatedAt: Date.now(),
     };
-    localStorage.setItem(noteKey(id), JSON.stringify(next));
-    meta = { ...meta, lastId: id, ids: [id, ...meta.ids.filter((x) => x !== id)] };
-    writeMeta(meta);
+    writeNote(next);
+    if (meta.lastId !== id) {
+      meta = { ...meta, lastId: id };
+      writeMeta(meta);
+    }
     return next;
   },
 
@@ -146,6 +167,7 @@ export const store = {
 
   remove(id: string): void {
     localStorage.removeItem(noteKey(id));
+    noteCache.delete(id);
     const ids = meta.ids.filter((x) => x !== id);
     meta = { ...meta, ids, lastId: meta.lastId === id ? (ids[0] ?? null) : meta.lastId };
     writeMeta(meta);

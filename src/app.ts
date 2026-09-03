@@ -3,7 +3,7 @@ import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
 import { meetingTemplate, nowStamp, titleFromMarkdown } from "./markdown.ts";
 
-const SAVE_MS = 120;
+const SAVE_MS = 500;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -194,8 +194,22 @@ export function startApp(host: HTMLElement): void {
     if (!currentId || !editor) return;
     const run = () => {
       const content = editor!.getMarkdown();
-      store.save(currentId, { content, title: titleFromMarkdown(content) });
-      paintList();
+      const title = titleFromMarkdown(content);
+      const n = store.save(currentId, { content, title });
+      if (!n) return;
+      const row = listEl.querySelector(`.note-item[data-id="${CSS.escape(currentId)}"]`);
+      if (row) {
+        const t = row.querySelector(".note-title");
+        const m = row.querySelector(".note-meta");
+        const nextTitle = n.pinned ? `★ ${title}` : title;
+        if (t && t.textContent !== nextTitle) t.textContent = nextTitle;
+        const when = formatWhen(n.updatedAt);
+        if (m && m.textContent !== when) m.textContent = when;
+      }
+      const stamp = formatWhen(n.updatedAt);
+      if (noteStamp.textContent !== stamp) noteStamp.textContent = stamp;
+      const nextDoc = `${title} · 闪记`;
+      if (document.title !== nextDoc) document.title = nextDoc;
     };
     window.clearTimeout(saveTimer);
     if (immediate) run();
@@ -390,8 +404,6 @@ export function startApp(host: HTMLElement): void {
   editor = mountEditor(editorRoot, {
     onChange() {
       persist(false);
-      const n = store.get(currentId);
-      if (n) document.title = `${titleFromMarkdown(editor!.getMarkdown())} · 闪记`;
     },
   });
 
