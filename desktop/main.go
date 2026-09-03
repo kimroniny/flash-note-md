@@ -3,12 +3,6 @@
 package main
 
 import (
-	"embed"
-	"fmt"
-	"io/fs"
-	"mime"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,21 +10,15 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
 )
-
-//go:embed all:dist
-var distFS embed.FS
 
 var flavor = "portable"
 
 const (
-	appName     = "闪记"
-	mutexName   = "Local\\FlashNote.yiiguo.singleton"
-	listenAddr  = "127.0.0.1:47821"
-	windowClass = "webview"
-	productDir  = "FlashNote"
+	appName    = "闪记"
+	mutexName  = "Local\\FlashNote.yiiguo.singleton"
+	productDir = "FlashNote"
 )
 
 func main() {
@@ -94,51 +82,6 @@ func hasFlag(args []string, name string) bool {
 	return false
 }
 
-func runApp() error {
-	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
-	sub, err := fs.Sub(distFS, "dist")
-	if err != nil {
-		return fmt.Errorf("读取内置界面失败：%w", err)
-	}
-
-	ln, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		if focusExisting() {
-			return nil
-		}
-		return fmt.Errorf("无法监听 %s：%w", listenAddr, err)
-	}
-	defer ln.Close()
-
-	srv := &http.Server{Handler: http.FileServer(http.FS(sub))}
-	go func() { _ = srv.Serve(ln) }()
-
-	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), productDir, "webview2")
-	_ = os.MkdirAll(dataDir, 0o755)
-
-	w := webview2.NewWithOptions(webview2.WebViewOptions{
-		Debug:     false,
-		AutoFocus: true,
-		DataPath:  dataDir,
-		WindowOptions: webview2.WindowOptions{
-			Title:  appName,
-			Width:  1180,
-			Height: 780,
-			IconId: 2,
-			Center: true,
-		},
-	})
-	if w == nil {
-		return fmt.Errorf("无法创建窗口。请安装 Microsoft Edge 或 WebView2 运行时：\nhttps://go.microsoft.com/fwlink/p/?LinkId=2124703")
-	}
-	defer w.Destroy()
-	w.SetSize(720, 520, webview2.HintMin)
-	w.Navigate("http://" + listenAddr + "/")
-	w.Run()
-	_ = srv.Close()
-	return nil
-}
-
 func acquireMutex() (func(), error) {
 	name, err := windows.UTF16PtrFromString(mutexName)
 	if err != nil {
@@ -158,18 +101,12 @@ func acquireMutex() (func(), error) {
 }
 
 func focusExisting() bool {
-	user32 := windows.NewLazySystemDLL("user32.dll")
-	findWindow := user32.NewProc("FindWindowW")
-	showWindow := user32.NewProc("ShowWindow")
-	setForeground := user32.NewProc("SetForegroundWindow")
-	class, _ := windows.UTF16PtrFromString(windowClass)
-	title, _ := windows.UTF16PtrFromString(appName)
-	hwnd, _, _ := findWindow.Call(uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(title)))
+	hwnd, _, _ := user32.NewProc("FindWindowW").Call(uintptr(unsafe.Pointer(utf16Ptr(windowClass))), 0)
 	if hwnd == 0 {
 		return false
 	}
-	_, _, _ = showWindow.Call(hwnd, 9) // SW_RESTORE
-	_, _, _ = setForeground.Call(hwnd)
+	_, _, _ = pShowWindow.Call(hwnd, swRestore)
+	_, _, _ = user32.NewProc("SetForegroundWindow").Call(hwnd)
 	return true
 }
 
@@ -183,7 +120,7 @@ func confirm(msg string) bool {
 	caption, _ := windows.UTF16PtrFromString(appName)
 	text, _ := windows.UTF16PtrFromString(msg)
 	r, _ := windows.MessageBox(0, text, caption, windows.MB_YESNO|windows.MB_ICONQUESTION)
-	return r == 6 // IDYES
+	return r == 6
 }
 
 func installDir() string {
