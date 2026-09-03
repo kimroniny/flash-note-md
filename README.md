@@ -1,22 +1,32 @@
 # 闪记
 
-开会时立刻打开、立刻记录的 Markdown 笔记。只面向 Windows：用 Edge 应用窗口启动，几乎不需要等待。所写即所见——当前段落是 Markdown 原文，离开后马上变成排版后的样子。笔记保存在本机浏览器存储里，关窗也不会丢。
+开会时立刻打开、立刻记录的 Markdown 笔记。Windows 专用：安装后是一个普通桌面程序，打开就能写。所写即所见——当前段落是 Markdown 原文，离开后马上变成排版后的样子。笔记保存在本机，关窗也不会丢。
 
-## 开会时怎么用
+## Windows 安装（推荐）
 
-第一次：
+下载仓库里的 [`release/FlashNote-Setup.exe`](release/FlashNote-Setup.exe)，双击即可。
 
-```bat
+- **不需要管理员权限**
+- 安装到 `%LOCALAPPDATA%\Programs\FlashNote\`
+- 桌面和开始菜单会出现「闪记」，之后双击就能开会记录
+- 卸载：Windows 设置 → 应用 → 闪记，或运行 `FlashNote.exe --uninstall`
+
+不想安装也可以直接双击 [`release/FlashNote.exe`](release/FlashNote.exe)（便携版）。
+
+系统需要已安装 Microsoft Edge 或 [WebView2 运行时](https://go.microsoft.com/fwlink/p/?LinkId=2124703)（Windows 10/11 通常已自带）。
+
+从源码重新打包：
+
+```bash
 npm install
-npm run build
-windows\FlashNote.bat
+bash scripts/build-windows.sh
 ```
 
-之后只要双击 `windows\FlashNote.bat`。可以把该快捷方式钉到任务栏，开会前一下就进来。
+会在 `release/` 下生成 `FlashNote-Setup.exe` 和 `FlashNote.exe`。
 
-开发预览：
+## 开发预览
 
-```bat
+```bash
 npm install
 npm run dev
 ```
@@ -49,5 +59,5 @@ npm run dev
 
 ## 说明
 
-- 适配 Windows。Edge 应用模式启动最快；没有 Edge 时也可以用 `npm run preview` 在浏览器里用。
-- 数据在本机 `localStorage`，清站点数据会丢掉笔记。重要内容请用导出备份。
+- 笔记存在本机 WebView2 配置里。卸载程序不会删笔记；清掉 `%LOCALAPPDATA%\FlashNote\webview2` 才会丢掉。
+- 重要内容请用导出备份。

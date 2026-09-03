@@ -1,0 +1,211 @@
+//go:build windows
+
+package main
+
+import (
+	"embed"
+	"fmt"
+	"io/fs"
+	"mime"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"unsafe"
+
+	"github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
+)
+
+//go:embed all:dist
+var distFS embed.FS
+
+var flavor = "portable"
+
+const (
+	appName     = "闪记"
+	mutexName   = "Local\\FlashNote.yiiguo.singleton"
+	listenAddr  = "127.0.0.1:47821"
+	windowClass = "webview"
+	productDir  = "FlashNote"
+)
+
+func main() {
+	args := os.Args[1:]
+	if hasFlag(args, "--uninstall") {
+		if err := uninstall(); err != nil {
+			alert(err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+
+	self, err := os.Executable()
+	if err != nil {
+		alert("无法定位程序本身：" + err.Error())
+		os.Exit(1)
+	}
+	self, _ = filepath.Abs(self)
+
+	wantInstall := flavor == "setup" || hasFlag(args, "--install") || strings.Contains(strings.ToLower(filepath.Base(self)), "setup")
+	if wantInstall {
+		installed, err := install(self)
+		if err != nil {
+			alert("安装失败：" + err.Error())
+			os.Exit(1)
+		}
+		if !sameFile(self, installed) {
+			if err := launchDetached(installed); err != nil {
+				alert("已安装，但启动失败：" + err.Error())
+				os.Exit(1)
+			}
+			return
+		}
+	}
+
+	if restored := focusExisting(); restored {
+		return
+	}
+	release, err := acquireMutex()
+	if err != nil {
+		if focusExisting() {
+			return
+		}
+		alert("闪记已经在运行。")
+		return
+	}
+	defer release()
+
+	if err := runApp(); err != nil {
+		alert(err.Error())
+		os.Exit(1)
+	}
+}
+
+func hasFlag(args []string, name string) bool {
+	for _, a := range args {
+		if strings.EqualFold(a, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func runApp() error {
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+	sub, err := fs.Sub(distFS, "dist")
+	if err != nil {
+		return fmt.Errorf("读取内置界面失败：%w", err)
+	}
+
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		if focusExisting() {
+			return nil
+		}
+		return fmt.Errorf("无法监听 %s：%w", listenAddr, err)
+	}
+	defer ln.Close()
+
+	srv := &http.Server{Handler: http.FileServer(http.FS(sub))}
+	go func() { _ = srv.Serve(ln) }()
+
+	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), productDir, "webview2")
+	_ = os.MkdirAll(dataDir, 0o755)
+
+	w := webview2.NewWithOptions(webview2.WebViewOptions{
+		Debug:     false,
+		AutoFocus: true,
+		DataPath:  dataDir,
+		WindowOptions: webview2.WindowOptions{
+			Title:  appName,
+			Width:  1180,
+			Height: 780,
+			IconId: 2,
+			Center: true,
+		},
+	})
+	if w == nil {
+		return fmt.Errorf("无法创建窗口。请安装 Microsoft Edge 或 WebView2 运行时：\nhttps://go.microsoft.com/fwlink/p/?LinkId=2124703")
+	}
+	defer w.Destroy()
+	w.SetSize(720, 520, webview2.HintMin)
+	w.Navigate("http://" + listenAddr + "/")
+	w.Run()
+	_ = srv.Close()
+	return nil
+}
+
+func acquireMutex() (func(), error) {
+	name, err := windows.UTF16PtrFromString(mutexName)
+	if err != nil {
+		return nil, err
+	}
+	handle, err := windows.CreateMutex(nil, false, name)
+	if err == windows.ERROR_ALREADY_EXISTS {
+		if handle != 0 {
+			_ = windows.CloseHandle(handle)
+		}
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	return func() { _ = windows.CloseHandle(handle) }, nil
+}
+
+func focusExisting() bool {
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	findWindow := user32.NewProc("FindWindowW")
+	showWindow := user32.NewProc("ShowWindow")
+	setForeground := user32.NewProc("SetForegroundWindow")
+	class, _ := windows.UTF16PtrFromString(windowClass)
+	title, _ := windows.UTF16PtrFromString(appName)
+	hwnd, _, _ := findWindow.Call(uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(title)))
+	if hwnd == 0 {
+		return false
+	}
+	_, _, _ = showWindow.Call(hwnd, 9) // SW_RESTORE
+	_, _, _ = setForeground.Call(hwnd)
+	return true
+}
+
+func alert(msg string) {
+	caption, _ := windows.UTF16PtrFromString(appName)
+	text, _ := windows.UTF16PtrFromString(msg)
+	_, _ = windows.MessageBox(0, text, caption, windows.MB_OK|windows.MB_ICONERROR)
+}
+
+func confirm(msg string) bool {
+	caption, _ := windows.UTF16PtrFromString(appName)
+	text, _ := windows.UTF16PtrFromString(msg)
+	r, _ := windows.MessageBox(0, text, caption, windows.MB_YESNO|windows.MB_ICONQUESTION)
+	return r == 6 // IDYES
+}
+
+func installDir() string {
+	return filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", productDir)
+}
+
+func installedExe() string {
+	return filepath.Join(installDir(), "FlashNote.exe")
+}
+
+func sameFile(a, b string) bool {
+	absA, err1 := filepath.Abs(a)
+	absB, err2 := filepath.Abs(b)
+	if err1 != nil || err2 != nil {
+		return strings.EqualFold(a, b)
+	}
+	return strings.EqualFold(absA, absB)
+}
+
+func launchDetached(exe string) error {
+	cmd := exec.Command(exe)
+	cmd.Dir = filepath.Dir(exe)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: false}
+	return cmd.Start()
+}

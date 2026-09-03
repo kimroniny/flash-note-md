@@ -1,0 +1,2 @@
+e85ae354a2f89c38f8792f00edfce2cd8b4d04eda913b69a7b4b4da20cbd83d1  FlashNote.exe
+16ea9753f14ff70f80caa52882f95f6d132c76afdf116d10c2d5338c4d7dcb50  FlashNote-Setup.exe

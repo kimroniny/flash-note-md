@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 47821",
     "build": "tsc && vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 47821 --strictPort"
+    "preview": "vite preview --host 127.0.0.1 --port 47821 --strictPort",
+    "dist:win": "bash scripts/build-windows.sh"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
