@@ -1,13 +1,13 @@
 # 闪记
 
-开会用的 Markdown 笔记：打开就能写。当前段落是原文，点开别的段或离开后立刻变成排版后的样子。按住拖选可以一次选中多段。
+开会用的 Markdown 笔记：打开就能写。当前段落是原文，离开后立刻排版。顶栏「设置」里改存储目录、主题、字体和字号。列表中 Tab 缩进，Shift+Tab 取消缩进。
 
 ## Windows 安装
 
 请重新运行 [`release/FlashNote-Setup.exe`](release/FlashNote-Setup.exe) 覆盖安装（不需要管理员）。
 
 - 装到 `%LOCALAPPDATA%\Programs\FlashNote\`
-- 默认笔记目录：`文档\闪记`（可在应用里「存储」更改）
+- 默认笔记目录：`文档\闪记`（可在「设置」里更改）
 - 笔记是该目录下的 `.md` 文件，左侧按文件夹显示
 - 拖动左侧目录右缘可以调整宽度
 - 卸载：Windows 设置 → 应用 → 闪记
@@ -28,6 +28,8 @@
 | `Ctrl+K` | 搜索 / 跳转 |
 | `Ctrl+\` | 显示或隐藏目录 |
 | `Ctrl+A` | 全选当前笔记 |
+| `Tab` / `Shift+Tab` | 列表缩进 / 取消缩进 |
+| `Ctrl+,` | 设置 |
 | `Ctrl+Shift+F` | 专注模式 |
 | `Ctrl+Shift+T` | 下一主题 |
 | `Ctrl+;` | 插入当前时间 |

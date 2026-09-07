@@ -1,4 +1,4 @@
-import { THEMES, type FileNode, type ThemeId } from "./types.ts";
+import { FONTS, THEMES, type FileNode, type FontId, type ThemeId } from "./types.ts";
 import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
 import { meetingTemplate, nowStamp, titleFromMarkdown } from "./markdown.ts";
@@ -15,6 +15,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
     if (k === "class") node.className = v;
     else node.setAttribute(k, v);
   }
+  if (tag === "button" && !node.hasAttribute("tabindex")) node.tabIndex = -1;
   node.append(...children);
   return node;
 }
@@ -77,8 +78,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   const noteStamp = el("span", { class: "note-stamp" });
   const toast = el("div", { class: "toast", hidden: "" }, "已保存");
   const palette = el("div", { class: "overlay palette", hidden: "" });
-  const storagePop = el("div", { class: "popover storage-pop", hidden: "" });
-  const themePop = el("div", { class: "popover themes", hidden: "" });
+  const settingsPop = el("div", { class: "overlay settings", hidden: "" });
   const helpPop = el("div", { class: "overlay help", hidden: "" });
   const backdrop = el("button", {
     class: "sidebar-backdrop",
@@ -107,14 +107,13 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     el("button", { class: "icon-btn", type: "button", "data-act": "sidebar", title: "目录 Ctrl+\\" }, "☰"),
     noteStamp,
     el("span", { class: "flex" }),
-    el("button", { class: "text-btn", type: "button", "data-act": "theme", title: "主题" }, "主题"),
-    el("button", { class: "text-btn", type: "button", "data-act": "storage", title: "存储目录" }, "存储"),
+    el("button", { class: "text-btn", type: "button", "data-act": "settings", title: "设置 Ctrl+," }, "设置"),
     el("button", { class: "text-btn", type: "button", "data-act": "export", title: "导出 Ctrl+E" }, "导出"),
     el("button", { class: "text-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, "?"),
   );
 
   const main = el("div", { class: "main" }, topbar, el("div", { class: "editor-scroll" }, editorRoot));
-  host.append(sidebar, main, backdrop, themePop, storagePop, palette, helpPop, toast);
+  host.append(sidebar, main, backdrop, settingsPop, palette, helpPop, toast);
 
   const narrowMq = window.matchMedia("(max-width: 800px)");
   let mobileOpen = false;
@@ -159,6 +158,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>
         <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
         <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
+        <div><dt>Tab</dt><dd>列表缩进</dd></div>
+        <div><dt>Shift + Tab</dt><dd>取消缩进</dd></div>
+        <div><dt>Ctrl + ,</dt><dd>设置</dd></div>
         <div><dt>Ctrl + Shift + F</dt><dd>专注模式</dd></div>
         <div><dt>Ctrl + Shift + T</dt><dd>下一主题</dd></div>
         <div><dt>Ctrl + ;</dt><dd>插入当前时间</dd></div>
@@ -166,28 +168,47 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         <div><dt>Ctrl + S</dt><dd>立即保存</dd></div>
         <div><dt>Enter</dt><dd>下一段；列表中继续一条</dd></div>
       </dl>
-      <p class="hint">拖动左侧目录边缘可调整宽度。Windows 版可在「存储」里选择笔记文件夹。</p>
+      <p class="hint">拖动左侧目录边缘可调整宽度。Tab / Shift+Tab 缩进或取消缩进列表。Ctrl+, 打开设置。</p>
     </div>`;
 
+  const settingsSheet = el("div", { class: "sheet settings-sheet", role: "dialog", "aria-label": "设置" });
+  const storagePath = el("div", { class: "storage-path" });
+  const storageHint = el("p", { class: "hint" });
+  const pickBtn = el("button", { class: "text-btn", type: "button", "data-act": "pick-dir" }, "选择文件夹");
+  const themeBox = el("div", { class: "settings-themes" });
   THEMES.forEach((t) => {
     const b = el("button", { type: "button", class: "theme-swatch", "data-theme": t.id, title: t.name });
     b.style.setProperty("--swatch", t.swatch);
     b.style.setProperty("--ink", t.ink);
     b.append(el("i"), t.name);
-    themePop.append(b);
+    themeBox.append(b);
   });
-
-  const storagePath = el("div", { class: "storage-path" });
-  const storageHint = el("p", { class: "hint" });
-  const pickBtn = el("button", { class: "text-btn", type: "button", "data-act": "pick-dir" }, "选择文件夹");
-  storagePop.append(
-    el("h3", {}, "笔记目录"),
-    storagePath,
-    el("div", { class: "storage-actions" }, pickBtn),
-    storageHint,
+  const fontBox = el("div", { class: "settings-fonts" });
+  FONTS.forEach((f) => {
+    const b = el("button", { type: "button", class: "font-swatch", "data-font": f.id }, f.name);
+    b.style.fontFamily = f.css;
+    fontBox.append(b);
+  });
+  const sizeLabel = el("span", { class: "size-value" }, "18");
+  const sizeInput = el("input", {
+    class: "size-range",
+    type: "range",
+    min: "14",
+    max: "26",
+    step: "2",
+    "aria-label": "字号",
+  });
+  settingsSheet.append(
+    el("h2", {}, "设置"),
+    el("section", { class: "settings-section" }, el("h3", {}, "存储"), storagePath, el("div", { class: "storage-actions" }, pickBtn), storageHint),
+    el("section", { class: "settings-section" }, el("h3", {}, "主题"), themeBox),
+    el("section", { class: "settings-section" }, el("h3", {}, "字体"), fontBox),
+    el("section", { class: "settings-section" }, el("h3", {}, "字号"), el("div", { class: "size-row" }, sizeInput, sizeLabel, " px")),
   );
+  settingsPop.append(settingsSheet);
 
-  const paintStorage = () => {
+  const paintSettings = () => {
+    const m = store.meta();
     if (store.isDesktop()) {
       storagePath.textContent = store.storageDir() || "未选择";
       storageHint.textContent = "笔记保存为该目录下的 Markdown 文件，左侧按文件夹显示。";
@@ -197,8 +218,24 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       storageHint.textContent = "Windows 安装包里可以改成任意文件夹。浏览器预览只能存在本机浏览器里。";
       pickBtn.hidden = true;
     }
+    themeBox.querySelectorAll(".theme-swatch").forEach((n) => {
+      n.classList.toggle("active", (n as HTMLElement).dataset.theme === m.theme);
+    });
+    fontBox.querySelectorAll(".font-swatch").forEach((n) => {
+      n.classList.toggle("active", (n as HTMLElement).dataset.font === m.font);
+    });
+    sizeInput.value = String(m.fontSize);
+    sizeLabel.textContent = String(m.fontSize);
   };
-  paintStorage();
+
+  const openSettings = () => {
+    const on = settingsPop.hidden;
+    closeOverlays();
+    if (on) {
+      paintSettings();
+      settingsPop.hidden = false;
+    }
+  };
 
   const resizer = sidebar.querySelector(".sidebar-resizer") as HTMLElement;
   let resizing = false;
@@ -237,9 +274,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   const applyTheme = (id: ThemeId) => {
     store.setTheme(id);
-    themePop.querySelectorAll(".theme-swatch").forEach((n) => {
-      n.classList.toggle("active", (n as HTMLElement).dataset.theme === id);
-    });
+    paintSettings();
   };
 
   const persist = (immediate = false) => {
@@ -459,14 +494,13 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   const closeOverlays = () => {
     palette.hidden = true;
     helpPop.hidden = true;
-    themePop.hidden = true;
-    storagePop.hidden = true;
+    settingsPop.hidden = true;
     closeRowMenu();
   };
 
   const openPalette = () => {
     helpPop.hidden = true;
-    themePop.hidden = true;
+    settingsPop.hidden = true;
     palette.hidden = false;
     const box = el("div", { class: "sheet palette-sheet" });
     const input = el("input", { class: "palette-input", type: "search", placeholder: "跳转到笔记…", autofocus: "" });
@@ -549,22 +583,12 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     }
     if (act === "sidebar") toggleSidebar();
     if (act === "sidebar-close") closeMobileSidebar();
-    if (act === "theme") {
-      const on = themePop.hidden;
-      closeOverlays();
-      themePop.hidden = !on;
-    }
-    if (act === "storage") {
-      const on = storagePop.hidden;
-      closeOverlays();
-      paintStorage();
-      storagePop.hidden = !on;
-    }
+    if (act === "settings") openSettings();
     if (act === "pick-dir") {
       void (async () => {
         const dir = await store.pickDir();
         if (!dir) return;
-        paintStorage();
+        paintSettings();
         const notes = store.list();
         if (notes.length === 0) {
           await newMeeting();
@@ -574,7 +598,6 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
           paintList();
         }
         showToast("已切换目录");
-        storagePop.hidden = true;
         editor?.focus();
       })();
     }
@@ -592,12 +615,19 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     }
   });
 
-  themePop.addEventListener("click", (e) => {
-    const id = (e.target as HTMLElement).closest("[data-theme]")?.getAttribute("data-theme") as ThemeId | null;
-    if (!id) return;
-    applyTheme(id);
-    themePop.hidden = true;
-    editor?.focus();
+  settingsPop.addEventListener("click", (e) => {
+    if (e.target === settingsPop) settingsPop.hidden = true;
+    const themeId = (e.target as HTMLElement).closest("[data-theme]")?.getAttribute("data-theme") as ThemeId | null;
+    if (themeId) applyTheme(themeId);
+    const fontId = (e.target as HTMLElement).closest("[data-font]")?.getAttribute("data-font") as FontId | null;
+    if (fontId) {
+      store.setFont(fontId);
+      paintSettings();
+    }
+  });
+  sizeInput.addEventListener("input", () => {
+    store.setFontSize(Number(sizeInput.value));
+    paintSettings();
   });
 
   helpPop.addEventListener("click", (e) => {
@@ -609,12 +639,6 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   document.addEventListener("click", (e) => {
     if (rowMenu && !rowMenu.contains(e.target as Node)) closeRowMenu();
-    if (!themePop.hidden && !(e.target as HTMLElement).closest("[data-act='theme']") && !themePop.contains(e.target as Node)) {
-      themePop.hidden = true;
-    }
-    if (!storagePop.hidden && !(e.target as HTMLElement).closest("[data-act='storage']") && !storagePop.contains(e.target as Node)) {
-      storagePop.hidden = true;
-    }
   });
 
   window.addEventListener("keydown", (e) => {
@@ -642,6 +666,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       if (t.tagName === "INPUT") return;
       e.preventDefault();
       editor?.selectAll();
+    } else if (key === "," ) {
+      e.preventDefault();
+      openSettings();
     } else if (key === "k") {
       e.preventDefault();
       openPalette();

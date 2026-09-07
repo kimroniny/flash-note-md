@@ -135,6 +135,8 @@ body,
 html {
   background: var(--bg);
   color: var(--ink);
+  --editor-font: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif SC", Georgia, serif;
+  --editor-size: 18px;
 }
 
 body {
@@ -434,8 +436,8 @@ html.resizing-sidebar * {
 .block-view,
 .block-src {
   width: 100%;
-  font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif SC", "Georgia", serif;
-  font-size: 18px;
+  font-family: var(--editor-font);
+  font-size: var(--editor-size);
   line-height: 1.7;
   color: var(--ink);
   user-select: text;
@@ -470,7 +472,7 @@ html.resizing-sidebar * {
 
 .block.kind-h1 .block-src,
 .block-view h1 {
-  font-size: 34px;
+  font-size: calc(var(--editor-size) * 1.88);
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -478,14 +480,14 @@ html.resizing-sidebar * {
 
 .block.kind-h2 .block-src,
 .block-view h2 {
-  font-size: 26px;
+  font-size: calc(var(--editor-size) * 1.44);
   line-height: 1.3;
   font-weight: 700;
 }
 
 .block.kind-h3 .block-src,
 .block-view h3 {
-  font-size: 21px;
+  font-size: calc(var(--editor-size) * 1.16);
   font-weight: 700;
 }
 
@@ -499,7 +501,7 @@ html.resizing-sidebar * {
 .block.kind-code .block-src,
 .block-view pre {
   font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
-  font-size: 14px;
+  font-size: calc(var(--editor-size) * 0.78);
   line-height: 1.5;
   background: var(--code-bg);
   border-radius: 10px;
@@ -511,6 +513,13 @@ html.resizing-sidebar * {
 .block-view ol {
   padding-left: 1.3em;
 }
+
+.block-view li.indent-1 { padding-left: 1.25em; }
+.block-view li.indent-2 { padding-left: 2.5em; }
+.block-view li.indent-3 { padding-left: 3.75em; }
+.block-view li.indent-4 { padding-left: 5em; }
+.block-view li.indent-5 { padding-left: 6.25em; }
+.block-view li.indent-6 { padding-left: 7.5em; }
 
 .block-view .task-list {
   list-style: none;
@@ -652,24 +661,59 @@ html.resizing-sidebar * {
   margin: 0;
 }
 
-.storage-pop {
-  position: fixed;
-  top: 48px;
-  right: 16px;
-  z-index: 21;
-  width: min(420px, calc(100vw - 24px));
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  padding: 14px;
+.overlay.settings .sheet,
+.settings-sheet {
+  width: min(520px, 100%);
+  max-height: min(86vh, 740px);
+  overflow: auto;
+}
+
+.settings-section {
   display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.settings-themes,
+.settings-fonts {
+  display: grid;
+  gap: 4px;
+}
+
+.font-swatch {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 16px;
+}
+
+.font-swatch:hover,
+.font-swatch.active {
+  background: var(--accent-soft);
+}
+
+.size-row {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 
-.storage-pop h3 {
-  margin: 0;
-  font-size: 15px;
+.size-range {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.size-value {
+  min-width: 1.6em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .storage-path {
@@ -837,16 +881,6 @@ html.resizing-sidebar * {
   .editor-root,
   .md-editor {
     padding: 8px 16px 30vh;
-  }
-
-  .block-view,
-  .block-src {
-    font-size: 16px;
-  }
-
-  .block.kind-h1 .block-src,
-  .block-view h1 {
-    font-size: 26px;
   }
 
   .sheet dl div {

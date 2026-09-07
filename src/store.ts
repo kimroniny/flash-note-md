@@ -1,4 +1,4 @@
-import { THEMES, type FileNode, type Meta, type Note, type ThemeId } from "./types.ts";
+import { FONTS, THEMES, type FileNode, type FontId, type Meta, type Note, type ThemeId } from "./types.ts";
 
 const META_KEY = "flashnote.v1.meta";
 const noteKey = (id: string) => `flashnote.v1.note.${id}`;
@@ -14,6 +14,11 @@ function clampWidth(px: number): number {
   return Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, px)));
 }
 
+function clampFontSize(px: number): number {
+  if (!Number.isFinite(px)) return 18;
+  return Math.round(Math.min(26, Math.max(14, px)));
+}
+
 function defaultMeta(): Meta {
   return {
     ids: [],
@@ -22,6 +27,8 @@ function defaultMeta(): Meta {
     sidebar: true,
     focus: false,
     sidebarWidth: 268,
+    font: "serif",
+    fontSize: 18,
   };
 }
 
@@ -32,6 +39,7 @@ function readMeta(): Meta {
     const parsed = JSON.parse(raw) as Partial<Meta>;
     const ids = Array.isArray(parsed.ids) ? parsed.ids.filter((x) => typeof x === "string") : [];
     const theme = THEMES.some((t) => t.id === parsed.theme) ? (parsed.theme as ThemeId) : "paper";
+    const font = FONTS.some((f) => f.id === parsed.font) ? (parsed.font as FontId) : "serif";
     return {
       ids,
       lastId: typeof parsed.lastId === "string" ? parsed.lastId : null,
@@ -39,6 +47,8 @@ function readMeta(): Meta {
       sidebar: parsed.sidebar !== false,
       focus: parsed.focus === true,
       sidebarWidth: clampWidth(typeof parsed.sidebarWidth === "number" ? parsed.sidebarWidth : 268),
+      font,
+      fontSize: clampFontSize(typeof parsed.fontSize === "number" ? parsed.fontSize : 18),
     };
   } catch {
     return defaultMeta();
@@ -106,6 +116,13 @@ function applySidebarWidth(px: number): void {
   document.documentElement.style.setProperty("--sidebar-width", `${px}px`);
 }
 
+function applyTypography(font: FontId, fontSize: number): void {
+  const spec = FONTS.find((f) => f.id === font) ?? FONTS[0];
+  document.documentElement.style.setProperty("--editor-font", spec.css);
+  document.documentElement.style.setProperty("--editor-size", `${fontSize}px`);
+  document.documentElement.setAttribute("data-font", spec.id);
+}
+
 export const store = {
   sidebarMin: SIDEBAR_MIN,
   sidebarMax: SIDEBAR_MAX,
@@ -129,6 +146,7 @@ export const store = {
   async init(): Promise<void> {
     meta = readMeta();
     applySidebarWidth(meta.sidebarWidth);
+    applyTypography(meta.font, meta.fontSize);
     desktop = typeof window.flashGetDir === "function" && typeof window.flashList === "function";
     if (!desktop) return;
     storageDir = (await window.flashGetDir?.()) ?? "";
@@ -185,6 +203,18 @@ export const store = {
     meta = { ...meta, focus };
     writeMeta(meta);
     document.documentElement.classList.toggle("focus-mode", focus);
+  },
+
+  setFont(font: FontId): void {
+    meta = { ...meta, font };
+    writeMeta(meta);
+    applyTypography(meta.font, meta.fontSize);
+  },
+
+  setFontSize(px: number): void {
+    meta = { ...meta, fontSize: clampFontSize(px) };
+    writeMeta(meta);
+    applyTypography(meta.font, meta.fontSize);
   },
 
   list(): Note[] {

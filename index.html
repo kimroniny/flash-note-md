@@ -14,6 +14,7 @@
         if (meta.theme) document.documentElement.setAttribute("data-theme", meta.theme);
         if (meta.sidebar === false) document.documentElement.classList.add("sidebar-collapsed");
         if (meta.focus) document.documentElement.classList.add("focus-mode");
+        if (meta.fontSize) document.documentElement.style.setProperty("--editor-size", meta.fontSize + "px");
       } catch (e) {}
     </script>
   </head>

@@ -198,26 +198,33 @@ function listItems(md: string, kind: "ul" | "ol" | "task"): string {
   const items: string[] = [];
   let current = "";
   let hasTask = kind === "task";
+  const indentOf = (line: string) => {
+    const lead = line.match(/^[ \t]*/)?.[0] ?? "";
+    return Math.min(6, Math.floor(lead.replace(/\t/g, "  ").length / 2));
+  };
   const push = () => {
     if (!current) return;
+    const indent = indentOf(current);
     const raw = current.replace(/\n/g, " ").trim();
+    const depthClass = indent > 0 ? ` indent-${indent}` : "";
     const task = raw.match(TASK_LINE);
     if (task) {
       hasTask = true;
       const checked = task[1]?.toLowerCase() === "x";
       items.push(
-        `<li class="task${checked ? " checked" : ""}"><button type="button" class="check" aria-label="${checked ? "已完成" : "待办"}" aria-checked="${checked}"></button><span>${renderInline(task[2] ?? "")}</span></li>`,
+        `<li class="task${checked ? " checked" : ""}${depthClass}"><button type="button" class="check" aria-label="${checked ? "已完成" : "待办"}" aria-checked="${checked}"></button><span>${renderInline(task[2] ?? "")}</span></li>`,
       );
     } else {
       const stripped = raw.replace(/^([-*+]|\d+\.)\s*/, "");
-      items.push(`<li>${renderInline(stripped)}</li>`);
+      const cls = depthClass.trim();
+      items.push(cls ? `<li class="${cls}">${renderInline(stripped)}</li>` : `<li>${renderInline(stripped)}</li>`);
     }
     current = "";
   };
   for (const line of lines) {
     if (LIST_LINE.test(line)) {
       push();
-      current = line.trim();
+      current = line;
     } else if (current) {
       current += ` ${line.trim()}`;
     }
@@ -276,6 +283,55 @@ export function toggleTaskAt(md: string, index: number): string {
       return line;
     })
     .join("\n");
+}
+
+export function indentMarkdownLines(
+  md: string,
+  selStart: number,
+  selEnd: number,
+  outdent: boolean,
+): { md: string; start: number; end: number } {
+  const start = Math.min(selStart, selEnd);
+  const end = Math.max(selStart, selEnd);
+  const lineStart = md.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  let rangeEnd = end;
+  if (end > start && md[end - 1] === "\n") rangeEnd = end - 1;
+  let lineEnd = md.indexOf("\n", rangeEnd);
+  if (lineEnd < 0) lineEnd = md.length;
+
+  const prefix = md.slice(0, lineStart);
+  const body = md.slice(lineStart, lineEnd);
+  const suffix = md.slice(lineEnd);
+  const lines = body.split("\n");
+  let deltaStart = 0;
+  let deltaEnd = 0;
+  const nextLines = lines.map((line, i) => {
+    let next = line;
+    let d = 0;
+    if (outdent) {
+      if (line.startsWith("\t")) {
+        next = line.slice(1);
+        d = -1;
+      } else if (line.startsWith("  ")) {
+        next = line.slice(2);
+        d = -2;
+      } else if (line.startsWith(" ")) {
+        next = line.slice(1);
+        d = -1;
+      }
+    } else {
+      next = `  ${line}`;
+      d = 2;
+    }
+    if (i === 0) deltaStart = d;
+    deltaEnd += d;
+    return next;
+  });
+  return {
+    md: prefix + nextLines.join("\n") + suffix,
+    start: Math.max(lineStart, start + deltaStart),
+    end: Math.max(lineStart, end + deltaEnd),
+  };
 }
 
 export function continueList(md: string): { next: string; exit: boolean } {

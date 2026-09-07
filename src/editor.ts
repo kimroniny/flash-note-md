@@ -1,6 +1,7 @@
 import {
   blockKind,
   continueList,
+  indentMarkdownLines,
   joinBlocks,
   renderBlock,
   splitBlocks,
@@ -241,16 +242,20 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     if (!composing && !ie.isComposing) emit();
   });
 
-  root.addEventListener("keydown", (e) => {
+  root.addEventListener(
+    "keydown",
+    (e) => {
     const ta = e.target;
     if (!(ta instanceof HTMLTextAreaElement) || editing < 0) return;
     if (e.key === "Tab") {
       e.preventDefault();
-      const start = ta.selectionStart;
-      const end = ta.selectionEnd;
-      const insert = "  ";
-      ta.setRangeText(insert, start, end, "end");
+      e.stopPropagation();
+      const next = indentMarkdownLines(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey);
+      ta.value = next.md;
+      ta.setSelectionRange(next.start, next.end);
       blocks[editing] = ta.value;
+      const kind = blockKind(ta.value);
+      if (ta.parentElement) ta.parentElement.className = `block editing ${kindClass(kind)}`;
       autosize(ta);
       emit();
       return;
@@ -324,7 +329,9 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       return;
     }
     emit();
-  });
+  },
+  true,
+);
 
   document.addEventListener(
     "pointerdown",

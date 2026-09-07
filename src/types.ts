@@ -11,6 +11,36 @@ export const THEMES = [
 
 export type ThemeId = (typeof THEMES)[number]["id"];
 
+export const FONTS = [
+  {
+    id: "serif",
+    name: "衬线",
+    css: '"Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif SC", Georgia, serif',
+  },
+  {
+    id: "sans",
+    name: "黑体",
+    css: '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif',
+  },
+  {
+    id: "song",
+    name: "宋体",
+    css: '"Songti SC", "Noto Serif SC", SimSun, "Songti SC", PMingLiU, serif',
+  },
+  {
+    id: "kai",
+    name: "楷体",
+    css: 'KaiTi, STKaiti, "Kaiti SC", "Noto Serif SC", serif',
+  },
+  {
+    id: "mono",
+    name: "等宽",
+    css: '"Cascadia Code", Consolas, "Sarasa Mono SC", "Microsoft YaHei UI", monospace',
+  },
+] as const;
+
+export type FontId = (typeof FONTS)[number]["id"];
+
 export type Note = {
   id: string;
   title: string;
@@ -27,6 +57,8 @@ export type Meta = {
   sidebar: boolean;
   focus: boolean;
   sidebarWidth: number;
+  font: FontId;
+  fontSize: number;
 };
 
 export type FileNode = {
