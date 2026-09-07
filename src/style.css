@@ -514,12 +514,26 @@ html.resizing-sidebar * {
   padding-left: 1.3em;
 }
 
-.block-view li.indent-1 { padding-left: 1.25em; }
-.block-view li.indent-2 { padding-left: 2.5em; }
-.block-view li.indent-3 { padding-left: 3.75em; }
-.block-view li.indent-4 { padding-left: 5em; }
-.block-view li.indent-5 { padding-left: 6.25em; }
-.block-view li.indent-6 { padding-left: 7.5em; }
+.block-view ul ul,
+.block-view ol ol,
+.block-view ul ol,
+.block-view ol ul {
+  margin-top: 0.2em;
+  padding-left: 1.35em;
+}
+
+.block-view ul ul {
+  list-style-type: circle;
+}
+
+.block-view ul ul ul {
+  list-style-type: square;
+}
+
+.block-view .task-list .task-list {
+  list-style: none;
+  padding-left: 1.6em;
+}
 
 .block-view .task-list {
   list-style: none;

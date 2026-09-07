@@ -193,46 +193,99 @@ function renderInline(src: string): string {
   return parts.join("");
 }
 
-function listItems(md: string, kind: "ul" | "ol" | "task"): string {
-  const lines = md.split("\n");
-  const items: string[] = [];
-  let current = "";
-  let hasTask = kind === "task";
-  const indentOf = (line: string) => {
-    const lead = line.match(/^[ \t]*/)?.[0] ?? "";
-    return Math.min(6, Math.floor(lead.replace(/\t/g, "  ").length / 2));
-  };
-  const push = () => {
-    if (!current) return;
-    const indent = indentOf(current);
-    const raw = current.replace(/\n/g, " ").trim();
-    const depthClass = indent > 0 ? ` indent-${indent}` : "";
-    const task = raw.match(TASK_LINE);
-    if (task) {
-      hasTask = true;
-      const checked = task[1]?.toLowerCase() === "x";
-      items.push(
-        `<li class="task${checked ? " checked" : ""}${depthClass}"><button type="button" class="check" aria-label="${checked ? "已完成" : "待办"}" aria-checked="${checked}"></button><span>${renderInline(task[2] ?? "")}</span></li>`,
-      );
-    } else {
-      const stripped = raw.replace(/^([-*+]|\d+\.)\s*/, "");
-      const cls = depthClass.trim();
-      items.push(cls ? `<li class="${cls}">${renderInline(stripped)}</li>` : `<li>${renderInline(stripped)}</li>`);
+export function isListMarkdown(md: string): boolean {
+  const kind = blockKind(md);
+  return kind === "ul" || kind === "ol" || kind === "task";
+}
+
+function parseListLine(line: string): { indent: number; ordered: boolean; task: boolean; checked: boolean; text: string } | null {
+  const task = line.match(/^(\s*)([-*+])\s*\[([ xX]?)\]\s*(.*)$/);
+  if (task) {
+    return {
+      indent: (task[1] ?? "").replace(/\t/g, "  ").length,
+      ordered: false,
+      task: true,
+      checked: (task[3] ?? "").toLowerCase() === "x",
+      text: task[4] ?? "",
+    };
+  }
+  const ul = line.match(/^(\s*)([-*+])\s+(.*)$/);
+  if (ul) {
+    return {
+      indent: (ul[1] ?? "").replace(/\t/g, "  ").length,
+      ordered: false,
+      task: false,
+      checked: false,
+      text: ul[3] ?? "",
+    };
+  }
+  const ol = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+  if (ol) {
+    return {
+      indent: (ol[1] ?? "").replace(/\t/g, "  ").length,
+      ordered: true,
+      task: false,
+      checked: false,
+      text: ol[3] ?? "",
+    };
+  }
+  return null;
+}
+
+function listItemInner(row: NonNullable<ReturnType<typeof parseListLine>>): string {
+  if (row.task) {
+    const checked = row.checked;
+    return `<button type="button" class="check" aria-label="${checked ? "已完成" : "待办"}" aria-checked="${checked}"></button><span>${renderInline(row.text)}</span>`;
+  }
+  return renderInline(row.text);
+}
+
+function nestedListHtml(rows: NonNullable<ReturnType<typeof parseListLine>>[]): string {
+  let i = 0;
+  const walk = (minIndent: number): string => {
+    if (i >= rows.length || rows[i].indent < minIndent) return "";
+    const base = rows[i].indent;
+    const ordered = rows[i].ordered;
+    let hasTask = false;
+    const parts: string[] = [];
+    while (i < rows.length && rows[i].indent >= base) {
+      if (rows[i].indent > base) break;
+      if (rows[i].ordered !== ordered) break;
+      const row = rows[i];
+      i += 1;
+      if (row.task) hasTask = true;
+      const cls = row.task ? ` class="task${row.checked ? " checked" : ""}"` : "";
+      let li = `<li${cls}>${listItemInner(row)}`;
+      if (i < rows.length && rows[i].indent > row.indent) li += walk(rows[i].indent);
+      li += "</li>";
+      parts.push(li);
     }
-    current = "";
+    const tag = ordered ? "ol" : "ul";
+    const cls = hasTask ? ' class="task-list"' : "";
+    return `<${tag}${cls}>${parts.join("")}</${tag}>`;
   };
-  for (const line of lines) {
+  return walk(rows[0]?.indent ?? 0);
+}
+
+function listItems(md: string, _kind: "ul" | "ol" | "task"): string {
+  const rows: NonNullable<ReturnType<typeof parseListLine>>[] = [];
+  let pending: string | null = null;
+  const flush = () => {
+    if (pending === null) return;
+    const parsed = parseListLine(pending);
+    if (parsed) rows.push(parsed);
+    pending = null;
+  };
+  for (const line of md.split("\n")) {
     if (LIST_LINE.test(line)) {
-      push();
-      current = line;
-    } else if (current) {
-      current += ` ${line.trim()}`;
+      flush();
+      pending = line;
+    } else if (pending !== null) {
+      pending += ` ${line.trim()}`;
     }
   }
-  push();
-  const tag = kind === "ol" ? "ol" : "ul";
-  const cls = hasTask ? ' class="task-list"' : "";
-  return `<${tag}${cls}>${items.join("")}</${tag}>`;
+  flush();
+  return nestedListHtml(rows);
 }
 
 export function renderBlock(md: string): { html: string; kind: BlockKind } {
@@ -303,9 +356,22 @@ export function indentMarkdownLines(
   const body = md.slice(lineStart, lineEnd);
   const suffix = md.slice(lineEnd);
   const lines = body.split("\n");
+  const prefixLines = prefix.split("\n");
+  let prevListIndent = -1;
+  for (let i = prefixLines.length - 1; i >= 0; i--) {
+    const parsed = parseListLine(prefixLines[i] ?? "");
+    if (parsed) {
+      prevListIndent = parsed.indent;
+      break;
+    }
+    if ((prefixLines[i] ?? "").trim()) break;
+  }
+
   let deltaStart = 0;
   let deltaEnd = 0;
+  let runningPrev = prevListIndent;
   const nextLines = lines.map((line, i) => {
+    const parsed = parseListLine(line);
     let next = line;
     let d = 0;
     if (outdent) {
@@ -319,12 +385,20 @@ export function indentMarkdownLines(
         next = line.slice(1);
         d = -1;
       }
+    } else if (parsed) {
+      const maxIndent = runningPrev < 0 ? parsed.indent : runningPrev + 2;
+      if (parsed.indent < maxIndent) {
+        next = `  ${line}`;
+        d = 2;
+      }
     } else {
       next = `  ${line}`;
       d = 2;
     }
     if (i === 0) deltaStart = d;
     deltaEnd += d;
+    const after = parseListLine(next);
+    if (after) runningPrev = after.indent;
     return next;
   });
   return {

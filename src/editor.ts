@@ -2,6 +2,7 @@ import {
   blockKind,
   continueList,
   indentMarkdownLines,
+  isListMarkdown,
   joinBlocks,
   renderBlock,
   splitBlocks,
@@ -250,6 +251,22 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     if (e.key === "Tab") {
       e.preventDefault();
       e.stopPropagation();
+      const lineStart = ta.value.lastIndexOf("\n", Math.max(0, ta.selectionStart - 1)) + 1;
+      if (
+        !e.shiftKey &&
+        lineStart === 0 &&
+        editing > 0 &&
+        isListMarkdown(ta.value) &&
+        isListMarkdown(blocks[editing - 1] ?? "")
+      ) {
+        const prev = blocks[editing - 1] ?? "";
+        const merged = indentMarkdownLines(`${prev}\n${ta.value}`, prev.length + 1, prev.length + 1 + ta.selectionStart, false);
+        const idx = editing - 1;
+        blocks.splice(idx, 2, merged.md);
+        rerender(idx, merged.start);
+        emit();
+        return;
+      }
       const next = indentMarkdownLines(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey);
       ta.value = next.md;
       ta.setSelectionRange(next.start, next.end);
