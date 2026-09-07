@@ -323,19 +323,21 @@ function decorateLine(line: string): string {
     const hashes = line.match(/^(#{1,6})([ \t]*)(.*)$/);
     if (hashes) return `${mdMark((hashes[1] ?? "") + (hashes[2] ?? ""))}${decorateInline(hashes[3] ?? "")}`;
   }
-  const quote = line.match(/^(>+[ \t]?)(.*)$/);
-  if (quote) return `${mdMark(quote[1] ?? "", "md-quote-mark")}${decorateInline(quote[2] ?? "")}`;
-  const task = line.match(/^(\s*)([-*+]\s*\[([ xX]?)\]\s*)(.*)$/);
+  const quote = line.match(/^(\s*)((?:[-*+]\s+)?)(>+[ \t]?)(.*)$/);
+  if (quote?.[3]) {
+    return `${escapeHtml(quote[1] ?? "")}${mdMark(`${quote[2] ?? ""}${quote[3] ?? ""}`, "md-quote-mark")}<span class="md-quote-text">${decorateInline(quote[4] ?? "")}</span>`;
+  }
+  const task = line.match(/^(\s*)((?:[-*+]\s+)?)([-*+]\s*\[([ xX]?)\]\s*)(.*)$/);
   if (task) {
-    const checked = (task[3] ?? "").toLowerCase() === "x";
-    const mark = `<span class="md-mark md-task-mark${checked ? " is-checked" : ""}">${escapeHtml(task[2] ?? "")}</span>`;
-    const body = `<span class="md-task-text${checked ? " is-checked" : ""}">${decorateInline(task[4] ?? "")}</span>`;
+    const checked = (task[4] ?? "").toLowerCase() === "x";
+    const mark = `<span class="md-mark md-task-mark${checked ? " is-checked" : ""}">${escapeHtml(`${task[2] ?? ""}${task[3] ?? ""}`)}</span>`;
+    const body = `<span class="md-task-text${checked ? " is-checked" : ""}">${decorateInline(task[5] ?? "")}</span>`;
     return `${escapeHtml(task[1] ?? "")}${mark}${body}`;
   }
-  const taskTyping = line.match(/^(\s*)([-*+]\s*\[([ xX]?))\s*$/);
+  const taskTyping = line.match(/^(\s*)((?:[-*+]\s+)?)([-*+]\s*\[([ xX]?))\s*$/);
   if (taskTyping) {
-    const checked = (taskTyping[3] ?? "").toLowerCase() === "x";
-    const mark = `<span class="md-mark md-task-mark${checked ? " is-checked" : ""}">${escapeHtml(taskTyping[2] ?? "")}</span>`;
+    const checked = (taskTyping[4] ?? "").toLowerCase() === "x";
+    const mark = `<span class="md-mark md-task-mark${checked ? " is-checked" : ""}">${escapeHtml(`${taskTyping[2] ?? ""}${taskTyping[3] ?? ""}`)}</span>`;
     return `${escapeHtml(taskTyping[1] ?? "")}${mark}`;
   }
   const ul = line.match(/^(\s*)([-*+])(\s+|$)(.*)$/);

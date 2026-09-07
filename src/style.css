@@ -510,12 +510,29 @@ html.resizing-sidebar * {
   font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
 }
 
+.md-quote-text {
+  color: var(--quote);
+}
+
 .md-ul-mark,
 .md-task-mark,
 .md-hr-mark,
 .md-quote-mark {
   position: relative;
   color: transparent;
+}
+
+.md-quote-mark::before {
+  content: "";
+  position: absolute;
+  left: 0.1em;
+  top: 0.2em;
+  bottom: 0.2em;
+  border-left: 3px solid var(--quote);
+}
+
+.block.kind-quote .md-quote-mark::before {
+  content: none;
 }
 
 .md-ul-mark::before {
