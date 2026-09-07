@@ -206,8 +206,9 @@ export function liveBlockKind(md: string): BlockKind {
   return blockKind(md);
 }
 
-function mdMark(s: string): string {
-  return `<span class="md-mark">${escapeHtml(s)}</span>`;
+function mdMark(s: string, cls = ""): string {
+  const extra = cls ? ` ${cls}` : "";
+  return `<span class="md-mark${extra}">${escapeHtml(s)}</span>`;
 }
 
 function decorateInline(src: string): string {
@@ -221,66 +222,149 @@ function decorateInline(src: string): string {
         i = end + 1;
         continue;
       }
+      parts.push(`${mdMark("`")}<code>${escapeHtml(src.slice(i + 1))}</code>`);
+      break;
+    }
+    if (src[i] === "!" && src[i + 1] === "[") {
+      const fromBracket = src.slice(i + 1);
+      const done = fromBracket.match(/^\[([^\]]*)\]\(([^)\s]+)\)/);
+      if (done) {
+        parts.push(
+          `${mdMark("![")}<span class="md-link">${escapeHtml(done[1] ?? "")}</span>${mdMark(`](${done[2]})`)}`,
+        );
+        i += 1 + done[0].length;
+        continue;
+      }
+      const partial = fromBracket.match(/^\[([^\]]*)\]\(([^)]*)$/);
+      if (partial) {
+        parts.push(
+          `${mdMark("![")}<span class="md-link">${escapeHtml(partial[1] ?? "")}</span>${mdMark(`](${partial[2]})`)}`,
+        );
+        break;
+      }
     }
     const rest = src.slice(i);
     const link = rest.match(/^\[([^\]]+)\]\(([^)\s]+)\)/);
     if (link) {
-      parts.push(`${mdMark("[")}${decorateInline(link[1] ?? "")}${mdMark(`](${link[2]})`)}`);
+      parts.push(
+        `${mdMark("[")}<span class="md-link">${decorateInline(link[1] ?? "")}</span>${mdMark(`](${link[2]})`)}`,
+      );
       i += link[0].length;
       continue;
     }
-    const hi = rest.match(/^==([^=]+)==/);
-    if (hi) {
-      parts.push(`${mdMark("==")}<mark>${decorateInline(hi[1] ?? "")}</mark>${mdMark("==")}`);
-      i += hi[0].length;
-      continue;
+    const partialLink = rest.match(/^\[([^\]]+)\]\(([^)]*)$/);
+    if (partialLink) {
+      parts.push(
+        `${mdMark("[")}<span class="md-link">${decorateInline(partialLink[1] ?? "")}</span>${mdMark(`](${partialLink[2]})`)}`,
+      );
+      break;
     }
-    const strike = rest.match(/^~~([^~]+)~~/);
-    if (strike) {
-      parts.push(`${mdMark("~~")}<del>${decorateInline(strike[1] ?? "")}</del>${mdMark("~~")}`);
-      i += strike[0].length;
-      continue;
+    if (src.startsWith("==", i)) {
+      const end = src.indexOf("==", i + 2);
+      if (end > i) {
+        parts.push(`${mdMark("==")}<mark>${decorateInline(src.slice(i + 2, end))}</mark>${mdMark("==")}`);
+        i = end + 2;
+        continue;
+      }
+      parts.push(`${mdMark("==")}<mark>${decorateInline(src.slice(i + 2))}</mark>`);
+      break;
     }
-    const bold = rest.match(/^\*\*(.+?)\*\*/);
-    if (bold) {
-      parts.push(`${mdMark("**")}<strong>${decorateInline(bold[1] ?? "")}</strong>${mdMark("**")}`);
-      i += bold[0].length;
-      continue;
+    if (src.startsWith("~~", i)) {
+      const end = src.indexOf("~~", i + 2);
+      if (end > i) {
+        parts.push(`${mdMark("~~")}<del>${decorateInline(src.slice(i + 2, end))}</del>${mdMark("~~")}`);
+        i = end + 2;
+        continue;
+      }
+      parts.push(`${mdMark("~~")}<del>${decorateInline(src.slice(i + 2))}</del>`);
+      break;
     }
-    const italic = rest.match(/^\*(.+?)\*/);
-    if (italic) {
-      parts.push(`${mdMark("*")}<em>${decorateInline(italic[1] ?? "")}</em>${mdMark("*")}`);
-      i += italic[0].length;
-      continue;
+    if (src.startsWith("**", i) || src.startsWith("__", i)) {
+      const mark = src.slice(i, i + 2);
+      const end = src.indexOf(mark, i + 2);
+      if (end > i) {
+        parts.push(`${mdMark(mark)}<strong>${decorateInline(src.slice(i + 2, end))}</strong>${mdMark(mark)}`);
+        i = end + 2;
+        continue;
+      }
+      parts.push(`${mdMark(mark)}<strong>${decorateInline(src.slice(i + 2))}</strong>`);
+      break;
+    }
+    if (src[i] === "*" || src[i] === "_") {
+      const mark = src[i] ?? "*";
+      const end = src.indexOf(mark, i + 1);
+      if (end > i) {
+        parts.push(`${mdMark(mark)}<em>${decorateInline(src.slice(i + 1, end))}</em>${mdMark(mark)}`);
+        i = end + 1;
+        continue;
+      }
+      parts.push(`${mdMark(mark)}<em>${decorateInline(src.slice(i + 1))}</em>`);
+      break;
     }
     let j = i + 1;
-    while (j < src.length && !"`*[~=".includes(src[j] ?? "")) j += 1;
+    while (j < src.length && !"`*_~=![".includes(src[j] ?? "")) j += 1;
     parts.push(escapeHtml(src.slice(i, j)));
     i = j;
   }
   return parts.join("");
 }
 
+function listBullet(indent: number): string {
+  if (indent >= 4) return "▪";
+  if (indent >= 2) return "◦";
+  return "•";
+}
+
 function decorateLine(line: string): string {
+  if (/^(---|\*\*\*|___)\s*$/.test(line.trim())) {
+    return `<span class="md-mark md-hr-mark">${escapeHtml(line)}</span>`;
+  }
   if (/^(#{1,6})(?:\s|$)/.test(line)) {
     const hashes = line.match(/^(#{1,6})([ \t]*)(.*)$/);
     if (hashes) return `${mdMark((hashes[1] ?? "") + (hashes[2] ?? ""))}${decorateInline(hashes[3] ?? "")}`;
   }
-  const quote = line.match(/^(>\s?)(.*)$/);
-  if (quote) return `${mdMark(quote[1] ?? "")}${decorateInline(quote[2] ?? "")}`;
-  const task = line.match(/^(\s*)([-*+]\s*\[[ xX]?\]\s*)(.*)$/);
-  if (task) return `${escapeHtml(task[1] ?? "")}${mdMark(task[2] ?? "")}${decorateInline(task[3] ?? "")}`;
-  const ul = line.match(/^(\s*)([-*+]\s+)(.*)$/);
-  if (ul) return `${escapeHtml(ul[1] ?? "")}${mdMark(ul[2] ?? "")}${decorateInline(ul[3] ?? "")}`;
-  const ol = line.match(/^(\s*)(\d+\.\s+)(.*)$/);
-  if (ol) return `${escapeHtml(ol[1] ?? "")}${mdMark(ol[2] ?? "")}${decorateInline(ol[3] ?? "")}`;
-  if (/^```/.test(line)) return mdMark(line);
+  const quote = line.match(/^(>+[ \t]?)(.*)$/);
+  if (quote) return `${mdMark(quote[1] ?? "", "md-quote-mark")}${decorateInline(quote[2] ?? "")}`;
+  const task = line.match(/^(\s*)([-*+]\s*\[([ xX]?)\]\s*)(.*)$/);
+  if (task) {
+    const checked = (task[3] ?? "").toLowerCase() === "x";
+    const mark = `<span class="md-mark md-task-mark${checked ? " is-checked" : ""}">${escapeHtml(task[2] ?? "")}</span>`;
+    const body = `<span class="md-task-text${checked ? " is-checked" : ""}">${decorateInline(task[4] ?? "")}</span>`;
+    return `${escapeHtml(task[1] ?? "")}${mark}${body}`;
+  }
+  const taskTyping = line.match(/^(\s*)([-*+]\s*\[([ xX]?))\s*$/);
+  if (taskTyping) {
+    const checked = (taskTyping[3] ?? "").toLowerCase() === "x";
+    const mark = `<span class="md-mark md-task-mark${checked ? " is-checked" : ""}">${escapeHtml(taskTyping[2] ?? "")}</span>`;
+    return `${escapeHtml(taskTyping[1] ?? "")}${mark}`;
+  }
+  const ul = line.match(/^(\s*)([-*+])(\s+|$)(.*)$/);
+  if (ul) {
+    const indent = (ul[1] ?? "").replace(/\t/g, "  ").length;
+    const mark = `<span class="md-mark md-ul-mark" data-bullet="${listBullet(indent)}">${escapeHtml((ul[2] ?? "") + (ul[3] ?? ""))}</span>`;
+    return `${escapeHtml(ul[1] ?? "")}${mark}${decorateInline(ul[4] ?? "")}`;
+  }
+  const ol = line.match(/^(\s*)(\d+\.)(\s+|$)(.*)$/);
+  if (ol) {
+    const mark = `<span class="md-mark md-ol-mark">${escapeHtml((ol[2] ?? "") + (ol[3] ?? ""))}</span>`;
+    return `${escapeHtml(ol[1] ?? "")}${mark}${decorateInline(ol[4] ?? "")}`;
+  }
+  if (/^```/.test(line)) return mdMark(line, "md-fence-mark");
   return decorateInline(line);
 }
 
 export function decorateSource(md: string): string {
   if (!md) return "";
-  return md.split("\n").map(decorateLine).join("<br>");
+  const lines = md.split("\n");
+  if (/^```/.test(lines[0] ?? "")) {
+    return lines
+      .map((line, i) => {
+        if (i === 0 || /^```/.test(line)) return decorateLine(line);
+        return escapeHtml(line);
+      })
+      .join("<br>");
+  }
+  return lines.map(decorateLine).join("<br>");
 }
 
 export function isListMarkdown(md: string): boolean {

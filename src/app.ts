@@ -152,7 +152,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   helpPop.innerHTML = `
     <div class="sheet" role="dialog" aria-label="快捷键">
       <h2>打开就能写</h2>
-      <p>闪记为开会准备：启动后立刻落在编辑区。Markdown 会边打边排版，例如输入 <code>#</code> 当前行马上变成一级标题，<code>**强调**</code> 也会立刻加粗。符号可以留着，离开这段后只保留排版结果。</p>
+      <p>闪记为开会准备：启动后立刻落在编辑区。Markdown 边打边排版：<code>#</code> 变标题，<code>-</code> 变列表，<code>- [ ]</code> 变待办，<code>&gt;</code> 变引用，<code>**强调**</code>、<code>*斜体*</code>、<code>\`代码\`</code>、<code>~~删除~~</code>、<code>==高亮==</code> 都会马上显示效果。</p>
       <dl>
         <div><dt>Ctrl + N</dt><dd>新会议笔记</dd></div>
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>

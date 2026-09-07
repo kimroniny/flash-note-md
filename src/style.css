@@ -466,8 +466,8 @@ html.resizing-sidebar * {
 }
 
 .md-mark {
-  color: color-mix(in srgb, var(--muted) 70%, var(--accent));
-  font-weight: 500;
+  color: color-mix(in srgb, var(--muted) 55%, transparent);
+  font-weight: 400;
 }
 
 .md-live strong {
@@ -476,6 +476,11 @@ html.resizing-sidebar * {
 
 .md-live em {
   font-style: italic;
+}
+
+.md-live del {
+  text-decoration: line-through;
+  opacity: 0.78;
 }
 
 .md-live code {
@@ -488,6 +493,86 @@ html.resizing-sidebar * {
 
 .md-live mark {
   background: var(--mark);
+}
+
+.md-live .md-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.md-task-text.is-checked {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.md-fence-mark {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
+}
+
+.md-ul-mark,
+.md-task-mark,
+.md-hr-mark,
+.md-quote-mark {
+  position: relative;
+  color: transparent;
+}
+
+.md-ul-mark::before {
+  content: attr(data-bullet);
+  position: absolute;
+  left: 0;
+  right: 0;
+  color: var(--ink);
+  text-align: center;
+}
+
+.md-ol-mark {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.md-task-mark::before {
+  content: "";
+  position: absolute;
+  left: 0.15em;
+  top: 0.38em;
+  width: 0.9em;
+  height: 0.9em;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.md-task-mark.is-checked::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.md-task-mark.is-checked::after {
+  content: "";
+  position: absolute;
+  left: 0.42em;
+  top: 0.52em;
+  width: 0.28em;
+  height: 0.5em;
+  border-right: 2px solid var(--paper);
+  border-bottom: 2px solid var(--paper);
+  transform: rotate(40deg);
+}
+
+.md-hr-mark {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.md-hr-mark::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--line);
 }
 
 .block-src {
