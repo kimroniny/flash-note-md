@@ -28,7 +28,6 @@ var flavor = "portable"
 const (
 	appName     = "闪记"
 	mutexName   = "Local\\FlashNote.yiiguo.singleton"
-	listenAddr  = "127.0.0.1:47821"
 	windowClass = "webview"
 	productDir  = "FlashNote"
 )
@@ -101,14 +100,15 @@ func runApp() error {
 		return fmt.Errorf("读取内置界面失败：%w", err)
 	}
 
-	ln, err := net.Listen("tcp", listenAddr)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		if focusExisting() {
 			return nil
 		}
-		return fmt.Errorf("无法监听 %s：%w", listenAddr, err)
+		return fmt.Errorf("无法启动本地界面：%w", err)
 	}
 	defer ln.Close()
+	uiURL := "http://" + ln.Addr().String() + "/"
 
 	srv := &http.Server{Handler: http.FileServer(http.FS(sub))}
 	go func() { _ = srv.Serve(ln) }()
@@ -133,7 +133,7 @@ func runApp() error {
 	}
 	defer w.Destroy()
 	w.SetSize(720, 520, webview2.HintMin)
-	w.Navigate("http://" + listenAddr + "/")
+	w.Navigate(uiURL)
 	w.Run()
 	_ = srv.Close()
 	return nil
@@ -159,17 +159,39 @@ func acquireMutex() (func(), error) {
 
 func focusExisting() bool {
 	user32 := windows.NewLazySystemDLL("user32.dll")
-	findWindow := user32.NewProc("FindWindowW")
+	enumWindows := user32.NewProc("EnumWindows")
+	getClassName := user32.NewProc("GetClassNameW")
+	getWindowText := user32.NewProc("GetWindowTextW")
+	isWindowVisible := user32.NewProc("IsWindowVisible")
 	showWindow := user32.NewProc("ShowWindow")
 	setForeground := user32.NewProc("SetForegroundWindow")
-	class, _ := windows.UTF16PtrFromString(windowClass)
-	title, _ := windows.UTF16PtrFromString(appName)
-	hwnd, _, _ := findWindow.Call(uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(title)))
-	if hwnd == 0 {
+
+	var found uintptr
+	cb := syscall.NewCallback(func(hwnd, _ uintptr) uintptr {
+		vis, _, _ := isWindowVisible.Call(hwnd)
+		if vis == 0 {
+			return 1
+		}
+		classBuf := make([]uint16, 256)
+		_, _, _ = getClassName.Call(hwnd, uintptr(unsafe.Pointer(&classBuf[0])), 256)
+		if windows.UTF16ToString(classBuf) != windowClass {
+			return 1
+		}
+		titleBuf := make([]uint16, 512)
+		_, _, _ = getWindowText.Call(hwnd, uintptr(unsafe.Pointer(&titleBuf[0])), 512)
+		title := windows.UTF16ToString(titleBuf)
+		if title == appName || strings.Contains(title, appName) {
+			found = hwnd
+			return 0
+		}
+		return 1
+	})
+	_, _, _ = enumWindows.Call(cb, 0)
+	if found == 0 {
 		return false
 	}
-	_, _, _ = showWindow.Call(hwnd, 9) // SW_RESTORE
-	_, _, _ = setForeground.Call(hwnd)
+	_, _, _ = showWindow.Call(found, 9) // SW_RESTORE
+	_, _, _ = setForeground.Call(found)
 	return true
 }
 
