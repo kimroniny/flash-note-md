@@ -1,10 +1,17 @@
-import { THEMES, type Meta, type Note, type ThemeId } from "./types.ts";
+import { THEMES, type FileNode, type Meta, type Note, type ThemeId } from "./types.ts";
 
 const META_KEY = "flashnote.v1.meta";
 const noteKey = (id: string) => `flashnote.v1.note.${id}`;
+const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 520;
 
 function uid(): string {
   return `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function clampWidth(px: number): number {
+  if (!Number.isFinite(px)) return 268;
+  return Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, px)));
 }
 
 function defaultMeta(): Meta {
@@ -14,6 +21,7 @@ function defaultMeta(): Meta {
     theme: "paper",
     sidebar: true,
     focus: false,
+    sidebarWidth: 268,
   };
 }
 
@@ -30,6 +38,7 @@ function readMeta(): Meta {
       theme,
       sidebar: parsed.sidebar !== false,
       focus: parsed.focus === true,
+      sidebarWidth: clampWidth(typeof parsed.sidebarWidth === "number" ? parsed.sidebarWidth : 268),
     };
   } catch {
     return defaultMeta();
@@ -70,11 +79,87 @@ function writeNote(note: Note): void {
   localStorage.setItem(noteKey(note.id), JSON.stringify(note));
 }
 
+function flattenFiles(nodes: FileNode[], out: Note[] = []): Note[] {
+  for (const n of nodes) {
+    if (n.dir) flattenFiles(n.children ?? [], out);
+    else {
+      const prev = noteCache.get(n.path);
+      out.push({
+        id: n.path,
+        title: n.title || n.name.replace(/\.md$/i, ""),
+        content: prev?.content ?? "",
+        createdAt: prev?.createdAt ?? n.updatedAt,
+        updatedAt: n.updatedAt,
+        pinned: prev?.pinned === true,
+      });
+    }
+  }
+  return out;
+}
+
 let meta = readMeta();
+let desktop = false;
+let storageDir = "";
+let fileTree: FileNode[] = [];
+
+function applySidebarWidth(px: number): void {
+  document.documentElement.style.setProperty("--sidebar-width", `${px}px`);
+}
 
 export const store = {
+  sidebarMin: SIDEBAR_MIN,
+  sidebarMax: SIDEBAR_MAX,
+
+  isDesktop(): boolean {
+    return desktop;
+  },
+
+  storageDir(): string {
+    return storageDir;
+  },
+
+  tree(): FileNode[] {
+    return fileTree;
+  },
+
   meta(): Meta {
     return meta;
+  },
+
+  async init(): Promise<void> {
+    meta = readMeta();
+    applySidebarWidth(meta.sidebarWidth);
+    desktop = typeof window.flashGetDir === "function" && typeof window.flashList === "function";
+    if (!desktop) return;
+    storageDir = (await window.flashGetDir?.()) ?? "";
+    await this.refresh();
+    if (fileTree.length === 0 && this.localNotes().length > 0) {
+      for (const n of this.localNotes()) {
+        await window.flashCreate?.(n.title, n.content);
+      }
+      await this.refresh();
+    }
+  },
+
+  localNotes(): Note[] {
+    return meta.ids.map(readNote).filter((n): n is Note => n !== null);
+  },
+
+  async refresh(): Promise<void> {
+    if (!desktop || !window.flashList) {
+      fileTree = [];
+      return;
+    }
+    fileTree = (await window.flashList()) ?? [];
+    const listed = flattenFiles(fileTree);
+    const keep = new Set(listed.map((n) => n.id));
+    for (const id of [...noteCache.keys()]) {
+      if (!keep.has(id)) noteCache.delete(id);
+    }
+    for (const n of listed) {
+      const prev = noteCache.get(n.id);
+      noteCache.set(n.id, prev ? { ...n, content: prev.content, pinned: prev.pinned } : n);
+    }
   },
 
   setTheme(theme: ThemeId): void {
@@ -89,6 +174,13 @@ export const store = {
     document.documentElement.classList.toggle("sidebar-collapsed", !sidebar);
   },
 
+  setSidebarWidth(px: number): void {
+    const sidebarWidth = clampWidth(px);
+    meta = { ...meta, sidebarWidth };
+    writeMeta(meta);
+    applySidebarWidth(sidebarWidth);
+  },
+
   setFocus(focus: boolean): void {
     meta = { ...meta, focus };
     writeMeta(meta);
@@ -96,6 +188,12 @@ export const store = {
   },
 
   list(): Note[] {
+    if (desktop) {
+      return flattenFiles(fileTree).sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+    }
     const notes = meta.ids.map(readNote).filter((n): n is Note => n !== null);
     if (notes.length !== meta.ids.length) {
       meta = { ...meta, ids: notes.map((n) => n.id) };
@@ -108,20 +206,47 @@ export const store = {
   },
 
   get(id: string): Note | null {
+    if (desktop) return noteCache.get(id) ?? flattenFiles(fileTree).find((n) => n.id === id) ?? null;
     return readNote(id);
+  },
+
+  async load(id: string): Promise<Note | null> {
+    if (!desktop) return readNote(id);
+    const prev = this.get(id);
+    if (!window.flashRead) return prev;
+    const content = await window.flashRead(id);
+    const next: Note = {
+      id,
+      title: prev?.title || id.replace(/\.md$/i, ""),
+      content,
+      createdAt: prev?.createdAt ?? Date.now(),
+      updatedAt: prev?.updatedAt ?? Date.now(),
+      pinned: prev?.pinned === true,
+    };
+    noteCache.set(id, next);
+    return next;
   },
 
   last(): Note | null {
     if (meta.lastId) {
-      const n = readNote(meta.lastId);
+      const n = this.get(meta.lastId);
       if (n) return n;
     }
     const all = this.list();
     return all[0] ?? null;
   },
 
-  create(content: string, title: string): Note {
+  async create(content: string, title: string): Promise<Note> {
     const t = Date.now();
+    if (desktop && window.flashCreate) {
+      const path = await window.flashCreate(title, content);
+      const note: Note = { id: path, title, content, createdAt: t, updatedAt: t, pinned: false };
+      noteCache.set(path, note);
+      meta = { ...meta, lastId: path };
+      writeMeta(meta);
+      await this.refresh();
+      return note;
+    }
     const note: Note = {
       id: uid(),
       title,
@@ -137,7 +262,7 @@ export const store = {
   },
 
   save(id: string, patch: Partial<Pick<Note, "title" | "content" | "pinned">>): Note | null {
-    const prev = readNote(id);
+    const prev = this.get(id);
     if (!prev) return null;
     const title = patch.title !== undefined ? patch.title : prev.title;
     const content = patch.content !== undefined ? patch.content : prev.content;
@@ -152,7 +277,12 @@ export const store = {
       pinned,
       updatedAt: Date.now(),
     };
-    writeNote(next);
+    noteCache.set(id, next);
+    if (desktop) {
+      if (patch.content !== undefined) void window.flashWrite?.(id, next.content);
+    } else {
+      writeNote(next);
+    }
     if (meta.lastId !== id) {
       meta = { ...meta, lastId: id };
       writeMeta(meta);
@@ -165,11 +295,30 @@ export const store = {
     writeMeta(meta);
   },
 
-  remove(id: string): void {
-    localStorage.removeItem(noteKey(id));
+  async remove(id: string): Promise<void> {
     noteCache.delete(id);
+    if (desktop) {
+      await window.flashDelete?.(id);
+      await this.refresh();
+      if (meta.lastId === id) {
+        meta = { ...meta, lastId: this.list()[0]?.id ?? null };
+        writeMeta(meta);
+      }
+      return;
+    }
+    localStorage.removeItem(noteKey(id));
     const ids = meta.ids.filter((x) => x !== id);
     meta = { ...meta, ids, lastId: meta.lastId === id ? (ids[0] ?? null) : meta.lastId };
     writeMeta(meta);
+  },
+
+  async pickDir(): Promise<string | null> {
+    if (!window.flashPickDir) return null;
+    const dir = await window.flashPickDir();
+    if (!dir) return null;
+    storageDir = dir;
+    noteCache.clear();
+    await this.refresh();
+    return dir;
   },
 };

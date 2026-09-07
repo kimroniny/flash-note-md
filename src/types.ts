@@ -26,4 +26,14 @@ export type Meta = {
   theme: ThemeId;
   sidebar: boolean;
   focus: boolean;
+  sidebarWidth: number;
+};
+
+export type FileNode = {
+  path: string;
+  name: string;
+  title: string;
+  dir: boolean;
+  updatedAt: number;
+  children?: FileNode[];
 };

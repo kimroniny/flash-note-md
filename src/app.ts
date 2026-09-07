@@ -1,4 +1,4 @@
-import { THEMES, type ThemeId } from "./types.ts";
+import { THEMES, type FileNode, type ThemeId } from "./types.ts";
 import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
 import { meetingTemplate, nowStamp, titleFromMarkdown } from "./markdown.ts";
@@ -53,6 +53,11 @@ function downloadMarkdown(title: string, content: string): void {
 }
 
 export function startApp(host: HTMLElement): void {
+  void startAppAsync(host);
+}
+
+async function startAppAsync(host: HTMLElement): Promise<void> {
+  await store.init();
   const meta = store.meta();
   document.documentElement.setAttribute("data-theme", meta.theme);
   document.documentElement.classList.toggle("sidebar-collapsed", !meta.sidebar);
@@ -72,6 +77,7 @@ export function startApp(host: HTMLElement): void {
   const noteStamp = el("span", { class: "note-stamp" });
   const toast = el("div", { class: "toast", hidden: "" }, "已保存");
   const palette = el("div", { class: "overlay palette", hidden: "" });
+  const storagePop = el("div", { class: "popover storage-pop", hidden: "" });
   const themePop = el("div", { class: "popover themes", hidden: "" });
   const helpPop = el("div", { class: "overlay help", hidden: "" });
   const backdrop = el("button", {
@@ -92,6 +98,7 @@ export function startApp(host: HTMLElement): void {
     ),
     search,
     listEl,
+    el("div", { class: "sidebar-resizer", title: "拖动调整宽度" }),
   );
 
   const topbar = el(
@@ -101,12 +108,13 @@ export function startApp(host: HTMLElement): void {
     noteStamp,
     el("span", { class: "flex" }),
     el("button", { class: "text-btn", type: "button", "data-act": "theme", title: "主题" }, "主题"),
+    el("button", { class: "text-btn", type: "button", "data-act": "storage", title: "存储目录" }, "存储"),
     el("button", { class: "text-btn", type: "button", "data-act": "export", title: "导出 Ctrl+E" }, "导出"),
     el("button", { class: "text-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, "?"),
   );
 
   const main = el("div", { class: "main" }, topbar, el("div", { class: "editor-scroll" }, editorRoot));
-  host.append(sidebar, main, backdrop, themePop, palette, helpPop, toast);
+  host.append(sidebar, main, backdrop, themePop, storagePop, palette, helpPop, toast);
 
   const narrowMq = window.matchMedia("(max-width: 800px)");
   let mobileOpen = false;
@@ -145,11 +153,12 @@ export function startApp(host: HTMLElement): void {
   helpPop.innerHTML = `
     <div class="sheet" role="dialog" aria-label="快捷键">
       <h2>打开就能写</h2>
-      <p>闪记为开会准备：启动后立刻落在编辑区。用 Markdown 写，当前段是原文，离开后立刻变成排版后的样子。</p>
+      <p>闪记为开会准备：启动后立刻落在编辑区。用 Markdown 写，当前段是原文，离开后立刻变成排版后的样子。按住拖选可以跨越多段，Ctrl+A 全选。</p>
       <dl>
         <div><dt>Ctrl + N</dt><dd>新会议笔记</dd></div>
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>
         <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
+        <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
         <div><dt>Ctrl + Shift + F</dt><dd>专注模式</dd></div>
         <div><dt>Ctrl + Shift + T</dt><dd>下一主题</dd></div>
         <div><dt>Ctrl + ;</dt><dd>插入当前时间</dd></div>
@@ -157,7 +166,7 @@ export function startApp(host: HTMLElement): void {
         <div><dt>Ctrl + S</dt><dd>立即保存</dd></div>
         <div><dt>Enter</dt><dd>下一段；列表中继续一条</dd></div>
       </dl>
-      <p class="hint">标题用 <code># </code>，待办用 <code>- [ ] </code>，强调用 <code>**文字**</code>。</p>
+      <p class="hint">拖动左侧目录边缘可调整宽度。Windows 版可在「存储」里选择笔记文件夹。</p>
     </div>`;
 
   THEMES.forEach((t) => {
@@ -167,6 +176,49 @@ export function startApp(host: HTMLElement): void {
     b.append(el("i"), t.name);
     themePop.append(b);
   });
+
+  const storagePath = el("div", { class: "storage-path" });
+  const storageHint = el("p", { class: "hint" });
+  const pickBtn = el("button", { class: "text-btn", type: "button", "data-act": "pick-dir" }, "选择文件夹");
+  storagePop.append(
+    el("h3", {}, "笔记目录"),
+    storagePath,
+    el("div", { class: "storage-actions" }, pickBtn),
+    storageHint,
+  );
+
+  const paintStorage = () => {
+    if (store.isDesktop()) {
+      storagePath.textContent = store.storageDir() || "未选择";
+      storageHint.textContent = "笔记保存为该目录下的 Markdown 文件，左侧按文件夹显示。";
+      pickBtn.hidden = false;
+    } else {
+      storagePath.textContent = "浏览器本地存储";
+      storageHint.textContent = "Windows 安装包里可以改成任意文件夹。浏览器预览只能存在本机浏览器里。";
+      pickBtn.hidden = true;
+    }
+  };
+  paintStorage();
+
+  const resizer = sidebar.querySelector(".sidebar-resizer") as HTMLElement;
+  let resizing = false;
+  resizer.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    resizing = true;
+    resizer.setPointerCapture(e.pointerId);
+    document.documentElement.classList.add("resizing-sidebar");
+  });
+  resizer.addEventListener("pointermove", (e) => {
+    if (!resizing) return;
+    store.setSidebarWidth(e.clientX - sidebar.getBoundingClientRect().left);
+  });
+  const stopResize = () => {
+    if (!resizing) return;
+    resizing = false;
+    document.documentElement.classList.remove("resizing-sidebar");
+  };
+  resizer.addEventListener("pointerup", stopResize);
+  resizer.addEventListener("pointercancel", stopResize);
 
   let currentId = "";
   let editor: EditorHandle | null = null;
@@ -221,15 +273,81 @@ export function startApp(host: HTMLElement): void {
     noteStamp.textContent = n ? formatWhen(n.updatedAt) : "";
   };
 
+  const collapsed = new Set<string>();
+
+  const appendFileRow = (id: string, title: string, updatedAt: number, depth: number, pinned: boolean) => {
+    const item = el(
+      "button",
+      {
+        type: "button",
+        class: `note-item${id === currentId ? " active" : ""}`,
+        "data-id": id,
+        role: "listitem",
+      },
+      el("span", { class: "note-title" }, pinned ? `★ ${title}` : title),
+      el("span", { class: "note-meta" }, formatWhen(updatedAt)),
+    );
+    item.style.setProperty("--depth", String(depth));
+    item.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openRowMenu(id, item);
+    });
+    listEl.append(item);
+  };
+
+  const paintTree = (nodes: FileNode[], depth: number, q: string) => {
+    for (const node of nodes) {
+      if (node.dir) {
+        const kids = node.children ?? [];
+        const matchSelf = !q || node.name.toLowerCase().includes(q);
+        const hasHit = matchSelf || JSON.stringify(kids).toLowerCase().includes(q);
+        if (q && !hasHit) continue;
+        const folded = collapsed.has(node.path) && !q;
+        const row = el(
+          "button",
+          { type: "button", class: "tree-folder", "data-folder": node.path },
+          `${folded ? "▸" : "▾"} ${node.name}`,
+        );
+        row.style.setProperty("--depth", String(depth));
+        row.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (collapsed.has(node.path)) collapsed.delete(node.path);
+          else collapsed.add(node.path);
+          paintList();
+        });
+        listEl.append(row);
+        if (!folded) paintTree(kids, depth + 1, q);
+        continue;
+      }
+      if (q) {
+        const n = store.get(node.path);
+        const hay = `${node.title} ${node.name} ${n?.content ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      const n = store.get(node.path);
+      appendFileRow(node.path, n?.title || node.title, n?.updatedAt || node.updatedAt, depth, n?.pinned === true);
+    }
+  };
+
   const paintList = () => {
     const q = searchQuery.trim().toLowerCase();
+    listEl.replaceChildren();
+    if (store.isDesktop()) {
+      paintTree(store.tree(), 0, q);
+      if (listEl.childElementCount === 0) {
+        listEl.append(el("div", { class: "empty-list" }, q ? "没有匹配的笔记" : "还没有笔记"));
+      }
+      paintStamp();
+      return;
+    }
     const notes = store.list().filter((n) => {
       if (!q) return true;
       return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
     });
-    listEl.replaceChildren();
     if (notes.length === 0) {
       listEl.append(el("div", { class: "empty-list" }, q ? "没有匹配的笔记" : "还没有笔记"));
+      paintStamp();
       return;
     }
     let lastGroup = "";
@@ -239,22 +357,7 @@ export function startApp(host: HTMLElement): void {
         lastGroup = g;
         listEl.append(el("div", { class: "group" }, g));
       }
-      const item = el(
-        "button",
-        {
-          type: "button",
-          class: `note-item${n.id === currentId ? " active" : ""}`,
-          "data-id": n.id,
-          role: "listitem",
-        },
-        el("span", { class: "note-title" }, n.pinned ? `★ ${n.title}` : n.title),
-        el("span", { class: "note-meta" }, formatWhen(n.updatedAt)),
-      );
-      item.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        openRowMenu(n.id, item);
-      });
-      listEl.append(item);
+      appendFileRow(n.id, n.title, n.updatedAt, 0, n.pinned);
     }
     paintStamp();
   };
@@ -281,14 +384,16 @@ export function startApp(host: HTMLElement): void {
     dup.onclick = () => {
       const copy = store.get(id);
       if (copy) {
-        const created = store.create(copy.content, `${copy.title} 副本`);
-        closeRowMenu();
-        openNote(created.id, false);
+        void (async () => {
+          const created = await store.create(copy.content, `${copy.title} 副本`);
+          closeRowMenu();
+          await openNote(created.id, false);
+        })();
       }
     };
     del.onclick = () => {
       closeRowMenu();
-      deleteNote(id);
+      void deleteNote(id);
     };
     menu.append(pin, dup, del);
     const r = anchor.getBoundingClientRect();
@@ -298,9 +403,9 @@ export function startApp(host: HTMLElement): void {
     rowMenu = menu;
   };
 
-  const openNote = (id: string, focus = true) => {
+  const openNote = async (id: string, focus = true) => {
     persist(true);
-    const n = store.get(id);
+    const n = (await store.load(id)) ?? store.get(id);
     if (!n) return;
     currentId = id;
     store.touch(id);
@@ -310,10 +415,10 @@ export function startApp(host: HTMLElement): void {
     if (focus) editor?.focus();
   };
 
-  const newMeeting = () => {
+  const newMeeting = async () => {
     persist(true);
     const content = meetingTemplate();
-    const n = store.create(content, titleFromMarkdown(content));
+    const n = await store.create(content, titleFromMarkdown(content));
     currentId = n.id;
     editor?.setMarkdown(content, true);
     document.title = `${n.title} · 闪记`;
@@ -321,17 +426,17 @@ export function startApp(host: HTMLElement): void {
     editor?.focus();
   };
 
-  const deleteNote = (id: string) => {
-    store.remove(id);
+  const deleteNote = async (id: string) => {
+    await store.remove(id);
     if (store.list().length === 0) {
       const content = meetingTemplate();
-      const n = store.create(content, titleFromMarkdown(content));
-      openNote(n.id);
+      const n = await store.create(content, titleFromMarkdown(content));
+      await openNote(n.id);
       return;
     }
     if (id === currentId) {
       const next = store.last() ?? store.list()[0];
-      if (next) openNote(next.id);
+      if (next) await openNote(next.id);
     } else {
       paintList();
     }
@@ -355,6 +460,7 @@ export function startApp(host: HTMLElement): void {
     palette.hidden = true;
     helpPop.hidden = true;
     themePop.hidden = true;
+    storagePop.hidden = true;
     closeRowMenu();
   };
 
@@ -410,7 +516,9 @@ export function startApp(host: HTMLElement): void {
   let initial = store.last();
   if (!initial) {
     const content = meetingTemplate();
-    initial = store.create(content, titleFromMarkdown(content));
+    initial = await store.create(content, titleFromMarkdown(content));
+  } else if (store.isDesktop()) {
+    initial = (await store.load(initial.id)) ?? initial;
   }
   currentId = initial.id;
   editor.setMarkdown(initial.content, true);
@@ -436,7 +544,7 @@ export function startApp(host: HTMLElement): void {
     const act = (e.target as HTMLElement).closest("[data-act]")?.getAttribute("data-act");
     if (!act) return;
     if (act === "new") {
-      newMeeting();
+      void newMeeting();
       closeMobileSidebar();
     }
     if (act === "sidebar") toggleSidebar();
@@ -445,6 +553,30 @@ export function startApp(host: HTMLElement): void {
       const on = themePop.hidden;
       closeOverlays();
       themePop.hidden = !on;
+    }
+    if (act === "storage") {
+      const on = storagePop.hidden;
+      closeOverlays();
+      paintStorage();
+      storagePop.hidden = !on;
+    }
+    if (act === "pick-dir") {
+      void (async () => {
+        const dir = await store.pickDir();
+        if (!dir) return;
+        paintStorage();
+        const notes = store.list();
+        if (notes.length === 0) {
+          await newMeeting();
+        } else if (!notes.some((n) => n.id === currentId)) {
+          await openNote(notes[0]?.id ?? "");
+        } else {
+          paintList();
+        }
+        showToast("已切换目录");
+        storagePop.hidden = true;
+        editor?.focus();
+      })();
     }
     if (act === "export") {
       const n = store.get(currentId);
@@ -480,6 +612,9 @@ export function startApp(host: HTMLElement): void {
     if (!themePop.hidden && !(e.target as HTMLElement).closest("[data-act='theme']") && !themePop.contains(e.target as Node)) {
       themePop.hidden = true;
     }
+    if (!storagePop.hidden && !(e.target as HTMLElement).closest("[data-act='storage']") && !storagePop.contains(e.target as Node)) {
+      storagePop.hidden = true;
+    }
   });
 
   window.addEventListener("keydown", (e) => {
@@ -501,7 +636,12 @@ export function startApp(host: HTMLElement): void {
     if (!mod) return;
     if (key === "n") {
       e.preventDefault();
-      newMeeting();
+      void newMeeting();
+    } else if (key === "a") {
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT") return;
+      e.preventDefault();
+      editor?.selectAll();
     } else if (key === "k") {
       e.preventDefault();
       openPalette();

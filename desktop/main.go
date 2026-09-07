@@ -116,6 +116,8 @@ func runApp() error {
 	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), productDir, "webview2")
 	_ = os.MkdirAll(dataDir, 0o755)
 
+	_ = windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED)
+
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug:     false,
 		AutoFocus: true,
@@ -132,6 +134,9 @@ func runApp() error {
 		return fmt.Errorf("无法创建窗口。请安装 Microsoft Edge 或 WebView2 运行时：\nhttps://go.microsoft.com/fwlink/p/?LinkId=2124703")
 	}
 	defer w.Destroy()
+	if err := bindDesktop(w); err != nil {
+		return fmt.Errorf("无法连接本地存储：%w", err)
+	}
 	w.SetSize(720, 520, webview2.HintMin)
 	w.Navigate(uiURL)
 	w.Run()

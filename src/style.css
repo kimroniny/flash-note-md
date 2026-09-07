@@ -160,7 +160,7 @@ button {
 
 .shell {
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 268px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
@@ -192,6 +192,7 @@ html.focus-mode .topbar:hover {
 }
 
 .sidebar {
+  position: relative;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
   display: flex;
@@ -199,6 +200,32 @@ html.focus-mode .topbar:hover {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 6;
+  touch-action: none;
+}
+
+.sidebar-resizer:hover,
+html.resizing-sidebar .sidebar-resizer {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+html.resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
+}
+
+html.resizing-sidebar * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .sidebar-head {
@@ -278,8 +305,28 @@ html.focus-mode .topbar:hover {
   gap: 2px;
   text-align: left;
   padding: 8px 10px;
+  padding-left: calc(10px + var(--depth, 0) * 14px);
   border-radius: 10px;
   margin-bottom: 2px;
+}
+
+.tree-folder {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  padding: 6px 10px;
+  padding-left: calc(10px + var(--depth, 0) * 14px);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.tree-folder:hover {
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
 .note-item.active {
@@ -375,6 +422,8 @@ html.focus-mode .topbar:hover {
 
 .md-editor {
   min-height: calc(100vh - 48px);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .block {
@@ -389,6 +438,9 @@ html.focus-mode .topbar:hover {
   font-size: 18px;
   line-height: 1.7;
   color: var(--ink);
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .block-src {
@@ -600,6 +652,49 @@ html.focus-mode .topbar:hover {
   margin: 0;
 }
 
+.storage-pop {
+  position: fixed;
+  top: 48px;
+  right: 16px;
+  z-index: 21;
+  width: min(420px, calc(100vw - 24px));
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.storage-pop h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.storage-path {
+  font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  word-break: break-all;
+  user-select: text;
+}
+
+.storage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.storage-pop .hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .popover.themes {
   position: fixed;
   top: 48px;
@@ -716,6 +811,10 @@ html.focus-mode .topbar:hover {
     transition: transform 0.16s ease;
     display: flex !important;
     pointer-events: none;
+  }
+
+  .sidebar-resizer {
+    display: none;
   }
 
   html:not(.sidebar-collapsed):not(.focus-mode) .sidebar {

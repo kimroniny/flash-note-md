@@ -12,6 +12,7 @@ export type EditorHandle = {
   getMarkdown(): string;
   setMarkdown(md: string, focusEnd?: boolean): void;
   focus(): void;
+  selectAll(): void;
   destroy(): void;
 };
 
@@ -62,6 +63,26 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     el.dataset.index = String(index);
     el.append(makeView(md));
     return el;
+  };
+
+  const selectedBlockIndices = (): number[] => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return [];
+    const hit: number[] = [];
+    for (let i = 0; i < root.children.length; i++) {
+      if (sel.containsNode(root.children[i] as Node, true)) hit.push(i);
+    }
+    return hit;
+  };
+
+  const markdownFromSelection = (): string | null => {
+    const ta = currentTextarea();
+    if (ta && document.activeElement === ta && ta.selectionStart !== ta.selectionEnd) {
+      return ta.value.slice(ta.selectionStart, ta.selectionEnd);
+    }
+    const indices = selectedBlockIndices();
+    if (indices.length <= 1) return null;
+    return joinBlocks(indices.map((i) => blocks[i] ?? ""));
   };
 
   const rerender = (focusIndex = -1, caret = -1): void => {
@@ -151,6 +172,10 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     }
   });
 
+  let downIndex = -1;
+  let downX = 0;
+  let downY = 0;
+
   root.addEventListener("pointerdown", (e) => {
     const t = e.target as HTMLElement;
     const check = t.closest(".check");
@@ -180,7 +205,28 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     if (!block) return;
     const index = Number((block as HTMLElement).dataset.index);
     if (editing === index) return;
+    if (editing >= 0) commitEdit(false);
+    downIndex = index;
+    downX = e.clientX;
+    downY = e.clientY;
+  });
+
+  root.addEventListener("pointerup", (e) => {
+    if (downIndex < 0) return;
+    const index = downIndex;
+    downIndex = -1;
+    const moved = Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4;
+    const sel = window.getSelection();
+    const hasSel = Boolean(sel && !sel.isCollapsed && root.contains(sel.anchorNode));
+    if (moved || hasSel) return;
     beginEdit(index);
+  });
+
+  root.addEventListener("copy", (e) => {
+    const md = markdownFromSelection();
+    if (!md || !e.clipboardData) return;
+    e.clipboardData.setData("text/plain", md);
+    e.preventDefault();
   });
 
   root.addEventListener("input", (e) => {
@@ -224,14 +270,19 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       }
       return;
     }
-    if (e.key === "ArrowUp" && ta.selectionStart === 0 && editing > 0) {
+    if (e.key === "ArrowUp" && !e.shiftKey && ta.selectionStart === 0 && editing > 0) {
       e.preventDefault();
       const prev = editing - 1;
       commitEdit(false);
       beginEdit(prev);
       return;
     }
-    if (e.key === "ArrowDown" && ta.selectionStart === ta.value.length && editing < blocks.length - 1) {
+    if (
+      e.key === "ArrowDown" &&
+      !e.shiftKey &&
+      ta.selectionStart === ta.value.length &&
+      editing < blocks.length - 1
+    ) {
       e.preventDefault();
       const next = editing + 1;
       commitEdit(false);
@@ -300,6 +351,14 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     focus() {
       const i = blocks.length - 1;
       beginEdit(i);
+    },
+    selectAll() {
+      if (editing >= 0) commitEdit(false);
+      const range = document.createRange();
+      range.selectNodeContents(root);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
     },
     destroy() {
       destroyed = true;
