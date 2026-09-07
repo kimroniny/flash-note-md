@@ -343,13 +343,13 @@ function decorateLine(line: string): string {
   const ul = line.match(/^(\s*)([-*+])(\s+|$)(.*)$/);
   if (ul) {
     const indent = (ul[1] ?? "").replace(/\t/g, "  ").length;
-    const mark = `<span class="md-mark md-ul-mark" data-bullet="${listBullet(indent)}">${escapeHtml((ul[2] ?? "") + (ul[3] ?? ""))}</span>`;
-    return `${escapeHtml(ul[1] ?? "")}${mark}${decorateInline(ul[4] ?? "")}`;
+    const mark = `<span class="md-mark md-ul-mark" data-bullet="${listBullet(indent)}">${escapeHtml(ul[2] ?? "")}</span>`;
+    return `${escapeHtml(ul[1] ?? "")}${mark}${escapeHtml(ul[3] ?? "")}${decorateInline(ul[4] ?? "")}`;
   }
   const ol = line.match(/^(\s*)(\d+\.)(\s+|$)(.*)$/);
   if (ol) {
-    const mark = `<span class="md-mark md-ol-mark">${escapeHtml((ol[2] ?? "") + (ol[3] ?? ""))}</span>`;
-    return `${escapeHtml(ol[1] ?? "")}${mark}${decorateInline(ol[4] ?? "")}`;
+    const mark = `<span class="md-mark md-ol-mark">${escapeHtml(ol[2] ?? "")}</span>`;
+    return `${escapeHtml(ol[1] ?? "")}${mark}${escapeHtml(ol[3] ?? "")}${decorateInline(ol[4] ?? "")}`;
   }
   if (/^```/.test(line)) return mdMark(line, "md-fence-mark");
   return decorateInline(line);

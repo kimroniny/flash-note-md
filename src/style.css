@@ -535,11 +535,14 @@ html.resizing-sidebar * {
   content: none;
 }
 
+.md-ul-mark {
+  display: inline-block;
+}
+
 .md-ul-mark::before {
   content: attr(data-bullet);
   position: absolute;
-  left: 0;
-  right: 0;
+  inset: 0;
   color: var(--ink);
   text-align: center;
 }
@@ -680,7 +683,8 @@ html.resizing-sidebar * {
 
 .block-view ul,
 .block-view ol {
-  padding-left: 1.3em;
+  padding-left: 0;
+  list-style-position: inside;
 }
 
 .block-view ul ul,
@@ -688,7 +692,7 @@ html.resizing-sidebar * {
 .block-view ul ol,
 .block-view ol ul {
   margin-top: 0.2em;
-  padding-left: 1.35em;
+  padding-left: 1.2em;
 }
 
 .block-view ul ul {
