@@ -1,9 +1,11 @@
 import {
   blockKind,
   continueList,
+  decorateSource,
   indentMarkdownLines,
   isListMarkdown,
   joinBlocks,
+  liveBlockKind,
   renderBlock,
   splitBlocks,
   toggleTaskAt,
@@ -97,6 +99,14 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
   const currentTextarea = (): HTMLTextAreaElement | null =>
     root.querySelector("textarea.block-src");
 
+  const paintLive = (ta: HTMLTextAreaElement): void => {
+    const parent = ta.parentElement;
+    if (!parent) return;
+    parent.className = `block editing ${kindClass(liveBlockKind(ta.value))}${composing ? " composing" : ""}`;
+    const live = parent.querySelector(".md-live");
+    if (live instanceof HTMLElement && !composing) live.innerHTML = decorateSource(ta.value) || "&nbsp;";
+  };
+
   const commitEdit = (keepIndex = false): number => {
     const ta = currentTextarea();
     if (!ta || editing < 0) return -1;
@@ -131,14 +141,19 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     if (!el) return;
     editing = index;
     const md = blocks[index] ?? "";
+    const live = document.createElement("div");
+    live.className = "md-live";
+    live.setAttribute("aria-hidden", "true");
     const ta = document.createElement("textarea");
     ta.className = "block-src";
     ta.value = md;
     ta.spellcheck = true;
     ta.setAttribute("aria-label", "编辑段落");
     ta.rows = 1;
+    ta.wrap = "soft";
     el.classList.add("editing");
-    el.replaceChildren(ta);
+    el.replaceChildren(live, ta);
+    paintLive(ta);
     autosize(ta);
     ta.focus();
     const pos = caret < 0 ? ta.value.length : Math.min(caret, ta.value.length);
@@ -162,14 +177,17 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     emit();
   };
 
-  root.addEventListener("compositionstart", () => {
+  root.addEventListener("compositionstart", (e) => {
     composing = true;
+    const ta = e.target;
+    if (ta instanceof HTMLTextAreaElement) ta.parentElement?.classList.add("composing");
   });
   root.addEventListener("compositionend", (e) => {
     composing = false;
     const ta = e.target;
     if (ta instanceof HTMLTextAreaElement && editing >= 0) {
       blocks[editing] = ta.value;
+      paintLive(ta);
       emit();
     }
   });
@@ -236,8 +254,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     if (!(ta instanceof HTMLTextAreaElement)) return;
     if (editing < 0) return;
     blocks[editing] = ta.value;
-    const kind = blockKind(ta.value);
-    if (ta.parentElement) ta.parentElement.className = `block editing ${kindClass(kind)}`;
+    paintLive(ta);
     autosize(ta);
     const ie = e as InputEvent;
     if (!composing && !ie.isComposing) emit();
@@ -271,8 +288,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       ta.value = next.md;
       ta.setSelectionRange(next.start, next.end);
       blocks[editing] = ta.value;
-      const kind = blockKind(ta.value);
-      if (ta.parentElement) ta.parentElement.className = `block editing ${kindClass(kind)}`;
+      paintLive(ta);
       autosize(ta);
       emit();
       return;
@@ -327,6 +343,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       } else {
         ta.value = result.next;
         blocks[editing] = ta.value;
+        paintLive(ta);
         autosize(ta);
         ta.setSelectionRange(ta.value.length, ta.value.length);
         emit();

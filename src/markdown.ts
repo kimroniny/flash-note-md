@@ -193,6 +193,96 @@ function renderInline(src: string): string {
   return parts.join("");
 }
 
+export function liveBlockKind(md: string): BlockKind {
+  const line = md.split("\n")[0] ?? "";
+  if (/^```/.test(line)) return "code";
+  if (/^(---|\*\*\*|___)\s*$/.test(line.trim())) return "hr";
+  const hashes = line.match(/^(#{1,6})(?:\s|$)/);
+  if (hashes?.[1]) return `h${hashes[1].length}` as BlockKind;
+  if (line === ">" || /^>\s?/.test(line)) return "quote";
+  if (md.split("\n").some(isTaskLine) || /^\s*[-*+]\s*\[[ xX]?\]?\s*$/.test(line)) return "task";
+  if (/^\s*[-*+](?:\s|$)/.test(line)) return "ul";
+  if (/^\s*\d+\.(?:\s|$)/.test(line)) return "ol";
+  return blockKind(md);
+}
+
+function mdMark(s: string): string {
+  return `<span class="md-mark">${escapeHtml(s)}</span>`;
+}
+
+function decorateInline(src: string): string {
+  const parts: string[] = [];
+  let i = 0;
+  while (i < src.length) {
+    if (src[i] === "`") {
+      const end = src.indexOf("`", i + 1);
+      if (end > i) {
+        parts.push(`${mdMark("`")}<code>${escapeHtml(src.slice(i + 1, end))}</code>${mdMark("`")}`);
+        i = end + 1;
+        continue;
+      }
+    }
+    const rest = src.slice(i);
+    const link = rest.match(/^\[([^\]]+)\]\(([^)\s]+)\)/);
+    if (link) {
+      parts.push(`${mdMark("[")}${decorateInline(link[1] ?? "")}${mdMark(`](${link[2]})`)}`);
+      i += link[0].length;
+      continue;
+    }
+    const hi = rest.match(/^==([^=]+)==/);
+    if (hi) {
+      parts.push(`${mdMark("==")}<mark>${decorateInline(hi[1] ?? "")}</mark>${mdMark("==")}`);
+      i += hi[0].length;
+      continue;
+    }
+    const strike = rest.match(/^~~([^~]+)~~/);
+    if (strike) {
+      parts.push(`${mdMark("~~")}<del>${decorateInline(strike[1] ?? "")}</del>${mdMark("~~")}`);
+      i += strike[0].length;
+      continue;
+    }
+    const bold = rest.match(/^\*\*(.+?)\*\*/);
+    if (bold) {
+      parts.push(`${mdMark("**")}<strong>${decorateInline(bold[1] ?? "")}</strong>${mdMark("**")}`);
+      i += bold[0].length;
+      continue;
+    }
+    const italic = rest.match(/^\*(.+?)\*/);
+    if (italic) {
+      parts.push(`${mdMark("*")}<em>${decorateInline(italic[1] ?? "")}</em>${mdMark("*")}`);
+      i += italic[0].length;
+      continue;
+    }
+    let j = i + 1;
+    while (j < src.length && !"`*[~=".includes(src[j] ?? "")) j += 1;
+    parts.push(escapeHtml(src.slice(i, j)));
+    i = j;
+  }
+  return parts.join("");
+}
+
+function decorateLine(line: string): string {
+  if (/^(#{1,6})(?:\s|$)/.test(line)) {
+    const hashes = line.match(/^(#{1,6})([ \t]*)(.*)$/);
+    if (hashes) return `${mdMark((hashes[1] ?? "") + (hashes[2] ?? ""))}${decorateInline(hashes[3] ?? "")}`;
+  }
+  const quote = line.match(/^(>\s?)(.*)$/);
+  if (quote) return `${mdMark(quote[1] ?? "")}${decorateInline(quote[2] ?? "")}`;
+  const task = line.match(/^(\s*)([-*+]\s*\[[ xX]?\]\s*)(.*)$/);
+  if (task) return `${escapeHtml(task[1] ?? "")}${mdMark(task[2] ?? "")}${decorateInline(task[3] ?? "")}`;
+  const ul = line.match(/^(\s*)([-*+]\s+)(.*)$/);
+  if (ul) return `${escapeHtml(ul[1] ?? "")}${mdMark(ul[2] ?? "")}${decorateInline(ul[3] ?? "")}`;
+  const ol = line.match(/^(\s*)(\d+\.\s+)(.*)$/);
+  if (ol) return `${escapeHtml(ol[1] ?? "")}${mdMark(ol[2] ?? "")}${decorateInline(ol[3] ?? "")}`;
+  if (/^```/.test(line)) return mdMark(line);
+  return decorateInline(line);
+}
+
+export function decorateSource(md: string): string {
+  if (!md) return "";
+  return md.split("\n").map(decorateLine).join("<br>");
+}
+
 export function isListMarkdown(md: string): boolean {
   const kind = blockKind(md);
   return kind === "ul" || kind === "ol" || kind === "task";
