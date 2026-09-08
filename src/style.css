@@ -419,7 +419,31 @@ html.resizing-sidebar * {
 }
 
 .home-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   margin-top: 22px;
+  height: auto;
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.home-new:hover,
+.home-new:focus-visible {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.home-new:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .main {

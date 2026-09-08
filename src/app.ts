@@ -458,7 +458,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       );
       list.append(item);
     }
-    const createBtn = el("button", { class: "text-btn home-new", type: "button", "data-act": "new" }, "新建笔记");
+    const createBtn = el("button", { class: "home-new", type: "button", "data-act": "new", tabindex: "0" }, "新建笔记");
     homeEl.replaceChildren(head, lede, list, createBtn);
   };
 
