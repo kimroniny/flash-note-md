@@ -697,7 +697,6 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   });
 
   window.addEventListener("keydown", (e) => {
-    const key = e.key.toLowerCase();
     if (e.key === "Escape") {
       closeOverlays();
       closeMobileSidebar();
@@ -713,41 +712,61 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     }
     const mod = e.ctrlKey || e.metaKey;
     if (!mod) return;
-    if (key === "n") {
+    const t = e.target as HTMLElement;
+    const inField = t.tagName === "INPUT" || t.tagName === "TEXTAREA";
+    const code = e.code;
+    if (code === "KeyN") {
       e.preventDefault();
       void newMeeting();
-    } else if (key === "a") {
-      const t = e.target as HTMLElement;
-      if (t.tagName === "INPUT") return;
+    } else if (code === "KeyA") {
+      if (inField) return;
       if (!currentId) return;
       e.preventDefault();
       editor?.selectAll();
-    } else if (key === "," ) {
+    } else if (code === "Comma") {
       e.preventDefault();
       openSettings();
-    } else if (key === "k") {
+    } else if (code === "KeyK") {
       e.preventDefault();
       openPalette();
-    } else if (key === "\\") {
+    } else if (code === "Backslash") {
       e.preventDefault();
       toggleSidebar();
-    } else if (key === "s") {
+    } else if (code === "KeyS") {
       e.preventDefault();
       persist(true);
       showToast("已保存");
-    } else if (key === "e") {
+    } else if (code === "KeyE") {
       e.preventDefault();
       const n = store.get(currentId);
       if (n) downloadMarkdown(n.title, editor?.getMarkdown() ?? n.content);
-    } else if (key === ";" ) {
+    } else if (code === "Semicolon") {
       e.preventDefault();
       insertTime();
-    } else if (key === "t" && e.shiftKey) {
+    } else if (code === "KeyT" && e.shiftKey) {
       e.preventDefault();
       cycleTheme();
-    } else if (key === "f" && e.shiftKey) {
+    } else if (code === "KeyF" && e.shiftKey) {
       e.preventDefault();
       store.setFocus(!store.meta().focus);
+    } else if (!e.shiftKey && !inField && currentId && editor) {
+      if (code === "KeyB") {
+        e.preventDefault();
+        editor.focus();
+        editor.format("bold");
+      } else if (code === "KeyI") {
+        e.preventDefault();
+        editor.focus();
+        editor.format("italic");
+      } else if (code === "KeyU") {
+        e.preventDefault();
+        editor.focus();
+        editor.format("underline");
+      } else if (/^Digit[1-6]$/.test(code)) {
+        e.preventDefault();
+        editor.focus();
+        editor.format(`h${code.slice(5)}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6");
+      }
     }
   });
 

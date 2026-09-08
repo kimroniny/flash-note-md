@@ -8,9 +8,12 @@ export type EditorHandle = {
   insert(text: string): void;
   focus(): void;
   selectAll(): void;
+  format(cmd: FormatCmd): void;
   applyChrome(): void;
   destroy(): void;
 };
+
+export type FormatCmd = "bold" | "italic" | "underline" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
 type Options = {
   onChange: () => void;
@@ -43,22 +46,65 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
 
   const cdn = vditorCdn();
 
+  const fireToolbar = (selector: string) => {
+    const btn = host.querySelector(selector);
+    if (!(btn instanceof HTMLElement)) return false;
+    btn.dispatchEvent(new CustomEvent("click", { bubbles: true, cancelable: true }));
+    return true;
+  };
+
   const escapeHtml = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  const applyUnderline = () => {
+  const wrapSelection = (prefix: string, suffix: string, asHtml = false) => {
     if (!instance || destroyed) return;
     const text = window.getSelection()?.toString() ?? "";
     if (text) document.execCommand("delete", false);
-    instance.insertValue(text ? `<u>${escapeHtml(text)}</u>` : "<u></u>", true);
+    if (asHtml) {
+      instance.insertValue(text ? `${prefix}${escapeHtml(text)}${suffix}` : `${prefix}${suffix}`, true);
+    } else {
+      instance.insertMD(text ? `${prefix}${text}${suffix}` : `${prefix}${suffix}`);
+    }
     if (ready) options.onChange();
+  };
+
+  const applyUnderline = () => wrapSelection("<u>", "</u>", true);
+
+  const applyInline = (type: "bold" | "italic") => {
+    if (!fireToolbar(`[data-type="${type}"]`)) {
+      wrapSelection(type === "bold" ? "**" : "*", type === "bold" ? "**" : "*");
+    } else if (ready) options.onChange();
   };
 
   const applyHeading = (level: number) => {
     const marker = `${"#".repeat(level)} `;
-    const btn = host.querySelector(`[data-value="${marker}"]`);
-    if (btn instanceof HTMLElement) btn.click();
+    if (!fireToolbar(`[data-value="${marker}"]`)) {
+      wrapSelection(marker, "");
+    } else if (ready) options.onChange();
   };
+
+  const format = (cmd: FormatCmd) => {
+    if (destroyed) return;
+    if (cmd === "bold") applyInline("bold");
+    else if (cmd === "italic") applyInline("italic");
+    else if (cmd === "underline") applyUnderline();
+    else applyHeading(Number(cmd.slice(1)));
+  };
+
+  const onFormatKey = (event: KeyboardEvent) => {
+    if (destroyed || event.isComposing || event.altKey) return;
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey) return;
+    const { code } = event;
+    if (code === "KeyB") format("bold");
+    else if (code === "KeyI") format("italic");
+    else if (code === "KeyU") format("underline");
+    else if (/^Digit[1-6]$/.test(code)) format(`h${code.slice(5)}` as FormatCmd);
+    else return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+
+  host.addEventListener("keydown", onFormatKey, true);
 
   instance = new Vditor(host, {
     cdn,
@@ -93,13 +139,6 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     resize: { enable: false },
     comment: { enable: false },
     hint: { parse: false, emoji: {} },
-    keydown(event) {
-      if (destroyed || event.altKey || event.shiftKey) return;
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (!/^[1-6]$/.test(event.key)) return;
-      event.preventDefault();
-      applyHeading(Number(event.key));
-    },
     preview: {
       hljs: { enable: false },
       math: { engine: "KaTeX", inlineDigit: false },
@@ -175,6 +214,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       sel?.removeAllRanges();
       sel?.addRange(range);
     },
+    format,
     applyChrome() {
       if (!ready || !instance) return;
       instance.setTheme(chromeTheme());

@@ -12,11 +12,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"unsafe"
 
 	"github.com/jchv/go-webview2"
+	"github.com/jchv/go-webview2/pkg/edge"
 	"golang.org/x/sys/windows"
 )
 
@@ -133,6 +135,7 @@ func runApp() error {
 	if w == nil {
 		return fmt.Errorf("无法创建窗口。请安装 Microsoft Edge 或 WebView2 运行时：\nhttps://go.microsoft.com/fwlink/p/?LinkId=2124703")
 	}
+	disableBrowserAccelerators(w)
 	defer w.Destroy()
 	if err := bindDesktop(w); err != nil {
 		return fmt.Errorf("无法连接本地存储：%w", err)
@@ -142,6 +145,32 @@ func runApp() error {
 	w.Run()
 	_ = srv.Close()
 	return nil
+}
+
+func disableBrowserAccelerators(w webview2.WebView) {
+	rv := reflect.ValueOf(w)
+	for rv.Kind() == reflect.Interface || rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return
+		}
+		rv = rv.Elem()
+	}
+	field := rv.FieldByName("browser")
+	if !field.IsValid() {
+		return
+	}
+	browser := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
+	chromium, ok := browser.(interface {
+		GetSettings() (*edge.ICoreWebViewSettings, error)
+	})
+	if !ok {
+		return
+	}
+	settings, err := chromium.GetSettings()
+	if err != nil || settings == nil {
+		return
+	}
+	_ = settings.PutAreBrowserAcceleratorKeysEnabled(false)
 }
 
 func acquireMutex() (func(), error) {
