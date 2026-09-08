@@ -70,10 +70,25 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
 
   const applyUnderline = () => wrapSelection("<u>", "</u>", true);
 
+  const closestType = (type: "strong" | "em") => {
+    const node = window.getSelection()?.anchorNode;
+    const el = node instanceof Element ? node : node?.parentElement;
+    return el?.closest(`[data-type="${type}"]`);
+  };
+
   const applyInline = (type: "bold" | "italic") => {
-    if (!fireToolbar(`[data-type="${type}"]`)) {
-      wrapSelection(type === "bold" ? "**" : "*", type === "bold" ? "**" : "*");
-    } else if (ready) options.onChange();
+    if (!instance || destroyed) return;
+    const dataType = type === "bold" ? "strong" : "em";
+    if (closestType(dataType)) {
+      fireToolbar(`[data-type="${type}"]`);
+      if (ready) options.onChange();
+      return;
+    }
+    const tag = dataType;
+    const text = window.getSelection()?.toString() ?? "";
+    if (text) document.execCommand("delete", false);
+    instance.insertValue(text ? `<${tag}>${escapeHtml(text)}</${tag}>` : `<${tag}></${tag}>`, true);
+    if (ready) options.onChange();
   };
 
   const applyHeading = (level: number) => {

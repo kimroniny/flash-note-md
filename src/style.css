@@ -587,6 +587,22 @@ html.resizing-sidebar * {
   text-underline-offset: 0.12em;
 }
 
+.md-editor .vditor-reset :is(strong, b, [data-type="strong"]) {
+  font-weight: 700;
+  font-synthesis: weight;
+}
+
+.md-editor .vditor-reset :is(em, i, [data-type="em"]) {
+  font-style: italic;
+  font-synthesis: style;
+}
+
+html[data-cjk-font="song"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]),
+html[data-cjk-font="fang"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]),
+html[data-cjk-font="kai"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]) {
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+}
+
 .md-editor .vditor-ir__marker {
   color: color-mix(in srgb, var(--muted) 70%, transparent) !important;
 }
