@@ -1,5 +1,6 @@
 import Vditor from "vditor";
 import "vditor/dist/index.css";
+import "vditor/dist/js/i18n/zh_CN.js";
 
 export type EditorHandle = {
   getMarkdown(): string;
@@ -46,6 +47,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     cdn,
     mode: "ir",
     lang: "zh_CN",
+    i18n: window.VditorI18n,
     theme: chromeTheme(),
     value: "",
     height: "auto",
