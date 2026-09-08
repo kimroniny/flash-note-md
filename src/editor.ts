@@ -43,6 +43,23 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
 
   const cdn = vditorCdn();
 
+  const escapeHtml = (value: string) =>
+    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const applyUnderline = () => {
+    if (!instance || destroyed) return;
+    const text = window.getSelection()?.toString() ?? "";
+    if (text) document.execCommand("delete", false);
+    instance.insertValue(text ? `<u>${escapeHtml(text)}</u>` : "<u></u>", true);
+    if (ready) options.onChange();
+  };
+
+  const applyHeading = (level: number) => {
+    const marker = `${"#".repeat(level)} `;
+    const btn = host.querySelector(`[data-value="${marker}"]`);
+    if (btn instanceof HTMLElement) btn.click();
+  };
+
   instance = new Vditor(host, {
     cdn,
     mode: "ir",
@@ -55,13 +72,34 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     placeholder: "开始写…",
     tab: "  ",
     cache: { enable: false },
-    toolbar: [],
+    toolbar: [
+      "headings",
+      "bold",
+      "italic",
+      {
+        name: "underline",
+        tip: "下划线",
+        hotkey: "⌘U",
+        tipPosition: "n",
+        icon: "<span>U</span>",
+        click() {
+          applyUnderline();
+        },
+      },
+    ],
     toolbarConfig: { hide: true, pin: false },
     outline: { enable: false, position: "left" },
     counter: { enable: false },
     resize: { enable: false },
     comment: { enable: false },
     hint: { parse: false, emoji: {} },
+    keydown(event) {
+      if (destroyed || event.altKey || event.shiftKey) return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (!/^[1-6]$/.test(event.key)) return;
+      event.preventDefault();
+      applyHeading(Number(event.key));
+    },
     preview: {
       hljs: { enable: false },
       math: { engine: "KaTeX", inlineDigit: false },

@@ -582,6 +582,11 @@ html.resizing-sidebar * {
   color: inherit;
 }
 
+.md-editor .vditor-reset u {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
 .md-editor .vditor-ir__marker {
   color: color-mix(in srgb, var(--muted) 70%, transparent) !important;
 }

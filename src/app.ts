@@ -163,6 +163,10 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>
         <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
         <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
+        <div><dt>Ctrl + B</dt><dd>粗体</dd></div>
+        <div><dt>Ctrl + I</dt><dd>斜体</dd></div>
+        <div><dt>Ctrl + U</dt><dd>下划线</dd></div>
+        <div><dt>Ctrl + 1 … 6</dt><dd>一级到六级标题</dd></div>
         <div><dt>Tab</dt><dd>列表缩进</dd></div>
         <div><dt>Shift + Tab</dt><dd>取消缩进</dd></div>
         <div><dt>Ctrl + ,</dt><dd>设置</dd></div>

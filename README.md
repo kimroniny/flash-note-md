@@ -28,6 +28,10 @@
 | `Ctrl+K` | 搜索 / 跳转 |
 | `Ctrl+\` | 显示或隐藏目录 |
 | `Ctrl+A` | 全选当前笔记 |
+| `Ctrl+B` | 粗体 |
+| `Ctrl+I` | 斜体 |
+| `Ctrl+U` | 下划线 |
+| `Ctrl+1` … `Ctrl+6` | 一级到六级标题 |
 | `Tab` / `Shift+Tab` | 列表缩进 / 取消缩进 |
 | `Ctrl+,` | 设置 |
 | `Ctrl+Shift+F` | 专注模式 |
