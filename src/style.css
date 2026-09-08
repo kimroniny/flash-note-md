@@ -427,375 +427,94 @@ html.resizing-sidebar * {
   background: var(--ink);
 }
 
-.editor-root,
-.md-editor {
+.editor-root {
   max-width: 760px;
   margin: 0 auto;
   padding: 12px 28px 28vh;
+  min-height: 100%;
 }
 
 .md-editor {
-  min-height: calc(100vh - 48px);
-  user-select: text;
-  -webkit-user-select: text;
+  min-height: calc(100vh - 72px);
 }
 
-.block {
-  position: relative;
-  margin: 0 0 6px;
+.md-editor,
+.md-editor .vditor,
+.md-editor .vditor-content,
+.md-editor .vditor-ir,
+.md-editor .vditor-reset {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
-.block-view,
-.block-src,
-.md-live {
-  width: 100%;
-  font-family: var(--editor-font);
-  font-size: var(--editor-size);
-  line-height: 1.7;
-  color: var(--ink);
-  user-select: text;
-  -webkit-user-select: text;
-  cursor: text;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
+.md-editor .vditor-toolbar,
+.md-editor .vditor-preview,
+.md-editor .vditor-counter,
+.md-editor .vditor-resize,
+.md-editor .vditor-outline,
+.md-editor .vditor-devtools,
+.md-editor .vditor-tip {
+  display: none !important;
 }
 
-.block.editing .md-live {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  color: var(--ink);
-  cursor: text;
-}
-
-.block.editing:not(.composing) .block-src {
-  color: transparent;
-}
-
-.block.editing.composing .md-live {
-  visibility: hidden;
-}
-
-.md-mark {
-  color: color-mix(in srgb, var(--muted) 55%, transparent);
-  font-weight: 400;
-}
-
-.md-live strong {
-  font-weight: 700;
-}
-
-.md-live em {
-  font-style: italic;
-}
-
-.md-live del {
-  text-decoration: line-through;
-  opacity: 0.78;
-}
-
-.md-live code {
-  font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
-  font-size: 0.92em;
-  background: var(--code-bg);
-  border-radius: 4px;
-  padding: 0 0.2em;
-}
-
-.md-live mark {
-  background: var(--mark);
-}
-
-.md-live .md-link {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
-.md-task-text.is-checked {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
-.md-fence-mark {
-  color: color-mix(in srgb, var(--muted) 70%, transparent);
-  font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
-}
-
-.md-quote-text {
-  color: var(--quote);
-}
-
-.md-ul-mark,
-.md-task-mark,
-.md-hr-mark,
-.md-quote-mark {
-  position: relative;
-  color: transparent;
-}
-
-.md-quote-mark::before {
-  content: "";
-  position: absolute;
-  left: 0.1em;
-  top: 0.2em;
-  bottom: 0.2em;
-  border-left: 3px solid var(--quote);
-}
-
-.block.kind-quote .md-quote-mark::before {
-  content: none;
-}
-
-.md-ul-mark {
-  display: inline-block;
-}
-
-.md-ul-mark::before {
-  content: attr(data-bullet);
-  position: absolute;
-  inset: 0;
-  color: var(--ink);
-  text-align: center;
-}
-
-.md-ol-mark {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.md-task-mark::before {
-  content: "";
-  position: absolute;
-  left: 0.15em;
-  top: 0.38em;
-  width: 0.9em;
-  height: 0.9em;
-  border: 1.5px solid var(--ink);
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-.md-task-mark.is-checked::before {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.md-task-mark.is-checked::after {
-  content: "";
-  position: absolute;
-  left: 0.42em;
-  top: 0.52em;
-  width: 0.28em;
-  height: 0.5em;
-  border-right: 2px solid var(--paper);
-  border-bottom: 2px solid var(--paper);
-  transform: rotate(40deg);
-}
-
-.md-hr-mark {
-  display: inline-block;
-  min-width: 100%;
-}
-
-.md-hr-mark::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  border-top: 1px solid var(--line);
-}
-
-.block-src {
-  display: block;
-  resize: none;
-  border: 0;
-  outline: none;
-  background: transparent;
-  padding: 0;
-  overflow: hidden;
-  caret-color: var(--accent);
-}
-
-.block-view p,
-.block-view h1,
-.block-view h2,
-.block-view h3,
-.block-view h4,
-.block-view h5,
-.block-view h6,
-.block-view blockquote,
-.block-view ul,
-.block-view ol,
-.block-view pre {
+.md-editor .vditor-content {
   margin: 0;
 }
 
-.block.kind-h1 .block-src,
-.block.kind-h1 .md-live,
-.block-view h1 {
-  font-size: calc(var(--editor-size) * 1.88);
-  line-height: 1.25;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+.md-editor .vditor-ir {
+  padding: 0;
 }
 
-.block.kind-h2 .block-src,
-.block.kind-h2 .md-live,
-.block-view h2 {
-  font-size: calc(var(--editor-size) * 1.44);
-  line-height: 1.3;
-  font-weight: 700;
+.md-editor .vditor-reset {
+  font-family: var(--editor-font) !important;
+  font-size: var(--editor-size) !important;
+  line-height: 1.7 !important;
+  color: var(--ink) !important;
+  padding: 0 !important;
 }
 
-.block.kind-h3 .block-src,
-.block.kind-h3 .md-live,
-.block-view h3 {
-  font-size: calc(var(--editor-size) * 1.16);
+.md-editor .vditor-reset h1,
+.md-editor .vditor-reset h2,
+.md-editor .vditor-reset h3,
+.md-editor .vditor-reset h4,
+.md-editor .vditor-reset h5,
+.md-editor .vditor-reset h6 {
+  color: var(--ink);
   font-weight: 700;
 }
 
-.block.kind-h4 .block-src,
-.block.kind-h4 .md-live,
-.block-view h4,
-.block.kind-h5 .block-src,
-.block.kind-h5 .md-live,
-.block-view h5,
-.block.kind-h6 .block-src,
-.block.kind-h6 .md-live,
-.block-view h6 {
-  font-size: var(--editor-size);
-  font-weight: 700;
-}
-
-.block.kind-quote .block-src,
-.block.kind-quote .md-live,
-.block-view blockquote {
-  border-left: 3px solid var(--quote);
-  padding-left: 14px;
+.md-editor .vditor-reset blockquote {
   color: var(--quote);
+  border-left-color: var(--quote);
 }
 
-.block.kind-code .block-src,
-.block.kind-code .md-live,
-.block-view pre {
-  font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
-  font-size: calc(var(--editor-size) * 0.78);
-  line-height: 1.5;
-  background: var(--code-bg);
-  border-radius: 10px;
-  padding: 12px 14px;
-  overflow: auto;
-}
-
-.block.editing:not(.composing) .block-src {
-  color: transparent;
-}
-
-.block-view ul,
-.block-view ol {
-  padding-left: 0;
-  list-style-position: inside;
-}
-
-.block-view ul ul,
-.block-view ol ol,
-.block-view ul ol,
-.block-view ol ul {
-  margin-top: 0.2em;
-  padding-left: 1.2em;
-}
-
-.block-view ul ul {
-  list-style-type: circle;
-}
-
-.block-view ul ul ul {
-  list-style-type: square;
-}
-
-.block-view .task-list .task-list {
-  list-style: none;
-  padding-left: 1.6em;
-}
-
-.block-view .task-list {
-  list-style: none;
-  padding-left: 0;
-}
-
-.block-view .task-list > li:not(.task) {
-  list-style: disc;
-  margin-left: 1.3em;
-}
-
-.block-view .task {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  margin: 4px 0;
-  list-style: none;
-}
-
-.block-view .task.checked span {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
-.check {
-  width: 18px;
-  height: 18px;
-  margin-top: 6px;
-  border: 1.5px solid var(--accent);
-  border-radius: 5px;
-  flex-shrink: 0;
-  background: var(--paper);
-  position: relative;
-}
-
-.task.checked .check {
-  background: var(--accent);
-}
-
-.task.checked .check::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid var(--paper);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.block-view a {
+.md-editor .vditor-reset a {
   color: var(--accent);
 }
 
-.block-view code {
-  font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 0.86em;
-  background: var(--code-bg);
-  padding: 0.1em 0.35em;
-  border-radius: 5px;
+.md-editor .vditor-reset code,
+.md-editor .vditor-reset pre {
+  background: var(--code-bg) !important;
+  font-family: "Cascadia Code", Consolas, "Sarasa Mono SC", monospace;
 }
 
-.block-view mark {
+.md-editor .vditor-reset mark {
   background: var(--mark);
   color: inherit;
-  padding: 0 0.15em;
 }
 
-.block-view hr {
-  border: 0;
-  border-top: 1px solid var(--line);
-  margin: 10px 0;
+.md-editor .vditor-ir__marker {
+  color: color-mix(in srgb, var(--muted) 70%, transparent) !important;
 }
 
-.block-view .blank {
-  min-height: 1.7em;
+.md-editor .vditor-ir pre.vditor-reset:focus {
+  outline: none;
+  background: transparent !important;
+}
+
+.md-editor .vditor-ir__node[data-type="link"] a {
+  color: var(--accent);
 }
 
 .overlay {

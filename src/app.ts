@@ -156,7 +156,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   helpPop.innerHTML = `
     <div class="sheet" role="dialog" aria-label="快捷键">
       <h2>打开就能写</h2>
-      <p>闪记为开会准备：启动后立刻落在编辑区。Markdown 边打边排版：<code>#</code> 变标题，<code>-</code> 变列表，<code>- [ ]</code> 变待办，<code>&gt;</code> 变引用，<code>**强调**</code>、<code>*斜体*</code>、<code>\`代码\`</code>、<code>~~删除~~</code>、<code>==高亮==</code> 都会马上显示效果。</p>
+      <p>闪记为开会准备：启动后立刻落在编辑区。用 Typora 式即时渲染：输入 Markdown 马上排版，中文输入法可正常用。</p>
       <dl>
         <div><dt>Ctrl + N</dt><dd>新会议笔记</dd></div>
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>
@@ -279,6 +279,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   const applyTheme = (id: ThemeId) => {
     store.setTheme(id);
     paintSettings();
+    editor?.applyChrome();
   };
 
   const persist = (immediate = false) => {
@@ -490,8 +491,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   const insertTime = () => {
     if (!editor) return;
-    const md = editor.getMarkdown();
-    editor.setMarkdown(`${md.replace(/\s+$/, "")}\n\n${nowStamp()} `, true);
+    editor.insert(nowStamp() + " ");
     persist();
   };
 
@@ -631,11 +631,13 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (fontId) {
       store.setFont(fontId);
       paintSettings();
+      editor?.applyChrome();
     }
   });
   sizeInput.addEventListener("input", () => {
     store.setFontSize(Number(sizeInput.value));
     paintSettings();
+    editor?.applyChrome();
   });
 
   helpPop.addEventListener("click", (e) => {
@@ -659,7 +661,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     }
     if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
       const t = e.target as HTMLElement;
-      if (t.tagName === "TEXTAREA" || t.tagName === "INPUT") return;
+      if (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable) return;
       e.preventDefault();
       helpPop.hidden = !helpPop.hidden;
       return;
