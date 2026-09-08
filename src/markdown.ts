@@ -21,7 +21,7 @@ export function titleFromMarkdown(md: string): string {
       .trim();
     if (cleaned) return cleaned.slice(0, 56);
   }
-  return "未命名会议";
+  return "未命名";
 }
 
 export type BlockKind =

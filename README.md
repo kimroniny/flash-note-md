@@ -1,6 +1,6 @@
 # 闪记
 
-开会用的 Markdown 笔记：打开就能写。编辑器用 Vditor 即时渲染（类似 Typora），输入会立刻排版。
+开会用的 Markdown 笔记。打开后先看到最近笔记；点一篇再写，或新建空白笔记自己起标题。编辑器用 Vditor 即时渲染（类似 Typora）。
 
 ## Windows 安装
 

@@ -1,7 +1,7 @@
 import { FONTS, THEMES, type FileNode, type FontId, type ThemeId } from "./types.ts";
 import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
-import { meetingTemplate, nowStamp, titleFromMarkdown } from "./markdown.ts";
+import { nowStamp, titleFromMarkdown } from "./markdown.ts";
 
 const SAVE_MS = 500;
 
@@ -74,7 +74,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     "aria-label": "搜索笔记",
   });
   const listEl = el("div", { class: "note-list", role: "list" });
-  const editorRoot = el("div", { id: "editor", class: "editor-root" });
+  const editorRoot = el("div", { id: "editor", class: "editor-root", hidden: "" });
+  const homeEl = el("div", { class: "home" });
   const noteStamp = el("span", { class: "note-stamp" });
   const toast = el("div", { class: "toast", hidden: "" }, "已保存");
   const palette = el("div", { class: "overlay palette", hidden: "" });
@@ -93,8 +94,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     el(
       "div",
       { class: "sidebar-head" },
-      el("div", { class: "brand" }, el("span", { class: "mark", "aria-hidden": "true" }), "闪记"),
-      el("button", { class: "icon-btn", type: "button", "data-act": "new", title: "新会议笔记 Ctrl+N" }, "+"),
+      el("button", { class: "brand", type: "button", "data-act": "home", title: "最近笔记" }, el("span", { class: "mark", "aria-hidden": "true" }), "闪记"),
+      el("button", { class: "icon-btn", type: "button", "data-act": "new", title: "新建笔记 Ctrl+N" }, "+"),
     ),
     search,
     listEl,
@@ -116,7 +117,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     el("button", { class: "text-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, "?"),
   );
 
-  const main = el("div", { class: "main" }, topbar, el("div", { class: "editor-scroll" }, editorRoot));
+  const main = el("div", { class: "main" }, topbar, el("div", { class: "editor-scroll" }, homeEl, editorRoot));
   host.append(sidebar, main, backdrop, settingsPop, palette, helpPop, toast);
 
   const narrowMq = window.matchMedia("(max-width: 800px)");
@@ -155,10 +156,10 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   helpPop.innerHTML = `
     <div class="sheet" role="dialog" aria-label="快捷键">
-      <h2>打开就能写</h2>
-      <p>闪记为开会准备：启动后立刻落在编辑区。用 Typora 式即时渲染：输入 Markdown 马上排版，中文输入法可正常用。</p>
+      <h2>打开先看最近</h2>
+      <p>启动后中间是最近笔记。点一篇再写；点 + 或 Ctrl+N 新建空白笔记，标题自己打。</p>
       <dl>
-        <div><dt>Ctrl + N</dt><dd>新会议笔记</dd></div>
+        <div><dt>Ctrl + N</dt><dd>新建空白笔记</dd></div>
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>
         <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
         <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
@@ -443,12 +444,47 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     rowMenu = menu;
   };
 
+  const paintHome = () => {
+    const notes = store.list().slice(0, 16);
+    const head = el("h1", {}, "最近");
+    const lede = el("p", { class: "lede" }, notes.length ? "从一篇接着写，或新建空白笔记。" : "还没有笔记。新建一篇，标题自己打。");
+    const list = el("div", { class: "home-list" });
+    for (const n of notes) {
+      const item = el(
+        "button",
+        { type: "button", class: "home-item", "data-id": n.id },
+        el("span", { class: "note-title" }, n.pinned ? `★ ${n.title}` : n.title),
+        el("span", { class: "note-meta" }, formatWhen(n.updatedAt)),
+      );
+      list.append(item);
+    }
+    const createBtn = el("button", { class: "text-btn home-new", type: "button", "data-act": "new" }, "新建笔记");
+    homeEl.replaceChildren(head, lede, list, createBtn);
+  };
+
+  const showHome = () => {
+    persist(true);
+    currentId = "";
+    homeEl.hidden = false;
+    editorRoot.hidden = true;
+    document.title = "闪记";
+    noteStamp.textContent = "";
+    paintHome();
+    paintList();
+  };
+
+  const showEditor = () => {
+    homeEl.hidden = true;
+    editorRoot.hidden = false;
+  };
+
   const openNote = async (id: string, focus = true) => {
     persist(true);
     const n = (await store.load(id)) ?? store.get(id);
     if (!n) return;
     currentId = id;
     store.touch(id);
+    showEditor();
     editor?.setMarkdown(n.content, false);
     document.title = `${n.title} · 闪记`;
     paintList();
@@ -457,29 +493,18 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   const newMeeting = async () => {
     persist(true);
-    const content = meetingTemplate();
-    const n = await store.create(content, titleFromMarkdown(content));
-    currentId = n.id;
-    editor?.setMarkdown(content, true);
-    document.title = `${n.title} · 闪记`;
-    paintList();
-    editor?.focus();
+    const n = await store.create("", "未命名");
+    await openNote(n.id, true);
   };
 
   const deleteNote = async (id: string) => {
     await store.remove(id);
-    if (store.list().length === 0) {
-      const content = meetingTemplate();
-      const n = await store.create(content, titleFromMarkdown(content));
-      await openNote(n.id);
+    if (id === currentId || store.list().length === 0) {
+      showHome();
       return;
     }
-    if (id === currentId) {
-      const next = store.last() ?? store.list()[0];
-      if (next) await openNote(next.id);
-    } else {
-      paintList();
-    }
+    paintList();
+    if (!currentId) paintHome();
   };
 
   const cycleTheme = () => {
@@ -490,7 +515,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   };
 
   const insertTime = () => {
-    if (!editor) return;
+    if (!editor || !currentId) return;
     editor.insert(nowStamp() + " ");
     persist();
   };
@@ -525,7 +550,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         palette.hidden = true;
-        editor?.focus();
+        if (currentId) editor?.focus();
       }
       if (e.key === "Enter") {
         const first = results.querySelector("[data-id]") as HTMLElement | null;
@@ -551,19 +576,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     },
   });
 
-  let initial = store.last();
-  if (!initial) {
-    const content = meetingTemplate();
-    initial = await store.create(content, titleFromMarkdown(content));
-  } else if (store.isDesktop()) {
-    initial = (await store.load(initial.id)) ?? initial;
-  }
-  currentId = initial.id;
-  editor.setMarkdown(initial.content, true);
-  document.title = `${initial.title} · 闪记`;
   applyTheme(store.meta().theme);
   paintList();
-  editor.focus();
+  showHome();
 
   listEl.addEventListener("click", (e) => {
     const id = (e.target as HTMLElement).closest("[data-id]")?.getAttribute("data-id");
@@ -571,6 +586,10 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       openNote(id);
       closeMobileSidebar();
     }
+  });
+  homeEl.addEventListener("click", (e) => {
+    const id = (e.target as HTMLElement).closest("[data-id]")?.getAttribute("data-id");
+    if (id) void openNote(id);
   });
 
   search.addEventListener("input", () => {
@@ -581,6 +600,10 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   host.addEventListener("click", (e) => {
     const act = (e.target as HTMLElement).closest("[data-act]")?.getAttribute("data-act");
     if (!act) return;
+    if (act === "home") {
+      showHome();
+      closeMobileSidebar();
+    }
     if (act === "new") {
       void newMeeting();
       closeMobileSidebar();
@@ -598,9 +621,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         paintSettings();
         const notes = store.list();
         if (notes.length === 0) {
-          await newMeeting();
+          showHome();
         } else if (!notes.some((n) => n.id === currentId)) {
-          await openNote(notes[0]?.id ?? "");
+          showHome();
         } else {
           paintList();
         }
@@ -656,7 +679,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (e.key === "Escape") {
       closeOverlays();
       closeMobileSidebar();
-      editor?.focus();
+      if (currentId) editor?.focus();
       return;
     }
     if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
@@ -674,6 +697,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     } else if (key === "a") {
       const t = e.target as HTMLElement;
       if (t.tagName === "INPUT") return;
+      if (!currentId) return;
       e.preventDefault();
       editor?.selectAll();
     } else if (key === "," ) {

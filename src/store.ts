@@ -71,7 +71,7 @@ function readNote(id: string): Note | null {
     if (!n || typeof n.id !== "string") return null;
     const note: Note = {
       id: n.id,
-      title: typeof n.title === "string" && n.title ? n.title : "未命名会议",
+      title: typeof n.title === "string" && n.title ? n.title : "未命名",
       content: typeof n.content === "string" ? n.content : "",
       createdAt: typeof n.createdAt === "number" ? n.createdAt : Date.now(),
       updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : Date.now(),

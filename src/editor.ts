@@ -50,7 +50,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     value: "",
     height: "auto",
     minHeight: 320,
-    placeholder: "",
+    placeholder: "开始写…",
     tab: "  ",
     cache: { enable: false },
     toolbar: [],

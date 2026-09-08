@@ -137,7 +137,7 @@ func titleFromContent(content, fallback string) string {
 	if fallback != "" {
 		return fallback
 	}
-	return "未命名会议"
+	return "未命名"
 }
 
 func sanitizeFileName(title string) string {
@@ -145,7 +145,7 @@ func sanitizeFileName(title string) string {
 	s := strings.TrimSpace(repl.Replace(title))
 	s = strings.Trim(s, ". ")
 	if s == "" {
-		s = "未命名会议"
+		s = "未命名"
 	}
 	runes := []rune(s)
 	if len(runes) > 48 {
