@@ -582,7 +582,8 @@ html.resizing-sidebar * {
   color: inherit;
 }
 
-.md-editor .vditor-reset u {
+.md-editor .vditor-reset u,
+.md-editor .vditor-reset .fn-u {
   text-decoration: underline;
   text-underline-offset: 0.12em;
 }

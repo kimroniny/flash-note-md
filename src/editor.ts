@@ -79,7 +79,58 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     if (ready) options.onChange();
   };
 
-  const applyUnderline = () => wrapSelection("<u>", "</u>", true);
+  const htmlInlineTag = (el: Element | null): string | null => {
+    if (!(el instanceof HTMLElement) || el.getAttribute("data-type") !== "html-inline") return null;
+    return (el.textContent ?? "").replace(/\u200b/g, "").trim();
+  };
+
+  const paintUnderlines = () => {
+    const pre = host.querySelector(".vditor-ir pre");
+    if (!(pre instanceof HTMLElement)) return;
+    pre.querySelectorAll("span.fn-u").forEach((span) => {
+      span.replaceWith(...span.childNodes);
+    });
+    const nodes = [...pre.querySelectorAll<HTMLElement>('[data-type="html-inline"]')];
+    for (let i = 0; i < nodes.length; i++) {
+      if (htmlInlineTag(nodes[i]) !== "<u>") continue;
+      for (let j = i + 1; j < nodes.length; j++) {
+        if (htmlInlineTag(nodes[j]) !== "</u>") continue;
+        if (nodes[i].parentNode !== nodes[j].parentNode) break;
+        const range = document.createRange();
+        range.setStartAfter(nodes[i]);
+        range.setEndBefore(nodes[j]);
+        if (range.collapsed) break;
+        const span = document.createElement("span");
+        span.className = "fn-u";
+        const frag = range.extractContents();
+        span.append(frag);
+        range.insertNode(span);
+        break;
+      }
+    }
+  };
+
+  const applyUnderline = () => {
+    if (destroyed) return;
+    focusSurface();
+    const node = window.getSelection()?.anchorNode;
+    const el = node instanceof Element ? node : node?.parentElement;
+    const painted = el?.closest("span.fn-u");
+    if (painted instanceof HTMLElement) {
+      const open = painted.previousElementSibling;
+      const close = painted.nextElementSibling;
+      if (open && htmlInlineTag(open) === "<u>") open.remove();
+      if (close && htmlInlineTag(close) === "</u>") close.remove();
+      painted.replaceWith(...painted.childNodes);
+      if (ready) options.onChange();
+      return;
+    }
+    const selected = window.getSelection()?.toString() ?? "";
+    if (selected) document.execCommand("delete", false);
+    document.execCommand("insertText", false, selected ? `<u>${selected}</u>` : "<u></u>");
+    paintUnderlines();
+    if (ready) options.onChange();
+  };
 
   const closestType = (type: "strong" | "em") => {
     const node = window.getSelection()?.anchorNode;
@@ -187,7 +238,9 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       },
     },
     input() {
-      if (!destroyed && ready) options.onChange();
+      if (destroyed) return;
+      paintUnderlines();
+      if (ready) options.onChange();
     },
     after() {
       if (destroyed) return;
@@ -197,6 +250,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       }
       ready = true;
       instance?.setTheme(chromeTheme());
+      paintUnderlines();
       if (wantFocus) {
         instance?.focus();
         wantFocus = false;
