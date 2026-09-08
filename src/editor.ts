@@ -49,8 +49,19 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
   const fireToolbar = (selector: string) => {
     const btn = host.querySelector(selector);
     if (!(btn instanceof HTMLElement)) return false;
-    btn.dispatchEvent(new CustomEvent("click", { bubbles: true, cancelable: true }));
+    btn.click();
     return true;
+  };
+
+  const selectionInHost = () => {
+    const node = window.getSelection()?.anchorNode;
+    return Boolean(node && host.contains(node));
+  };
+
+  const focusSurface = () => {
+    if (selectionInHost()) return;
+    const pre = host.querySelector(".vditor-ir pre, [contenteditable='true']");
+    if (pre instanceof HTMLElement) pre.focus();
   };
 
   const escapeHtml = (value: string) =>
@@ -77,17 +88,18 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
   };
 
   const applyInline = (type: "bold" | "italic") => {
-    if (!instance || destroyed) return;
+    if (destroyed) return;
+    focusSurface();
     const dataType = type === "bold" ? "strong" : "em";
     if (closestType(dataType)) {
       fireToolbar(`[data-type="${type}"]`);
       if (ready) options.onChange();
       return;
     }
-    const tag = dataType;
-    const text = window.getSelection()?.toString() ?? "";
-    if (text) document.execCommand("delete", false);
-    instance.insertValue(text ? `<${tag}>${escapeHtml(text)}</${tag}>` : `<${tag}></${tag}>`, true);
+    const marker = type === "bold" ? "**" : "*";
+    const selected = window.getSelection()?.toString() ?? "";
+    if (selected) document.execCommand("delete", false);
+    document.execCommand("insertText", false, selected ? `${marker}${selected}${marker}` : `${marker}${marker}`);
     if (ready) options.onChange();
   };
 
@@ -109,6 +121,10 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
   const onFormatKey = (event: KeyboardEvent) => {
     if (destroyed || event.isComposing || event.altKey) return;
     if (!(event.ctrlKey || event.metaKey) || event.shiftKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+    const inHost = target instanceof Node && host.contains(target);
+    if (!inHost && !selectionInHost()) return;
     const { code } = event;
     if (code === "KeyB") format("bold");
     else if (code === "KeyI") format("italic");
@@ -119,7 +135,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     event.stopImmediatePropagation();
   };
 
-  host.addEventListener("keydown", onFormatKey, true);
+  document.addEventListener("keydown", onFormatKey, true);
 
   instance = new Vditor(host, {
     cdn,
@@ -236,6 +252,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     },
     destroy() {
       destroyed = true;
+      document.removeEventListener("keydown", onFormatKey, true);
       instance?.destroy();
       instance = null;
       root.replaceChildren();

@@ -752,19 +752,15 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     } else if (!e.shiftKey && !inField && currentId && editor) {
       if (code === "KeyB") {
         e.preventDefault();
-        editor.focus();
         editor.format("bold");
       } else if (code === "KeyI") {
         e.preventDefault();
-        editor.focus();
         editor.format("italic");
       } else if (code === "KeyU") {
         e.preventDefault();
-        editor.focus();
         editor.format("underline");
       } else if (/^Digit[1-6]$/.test(code)) {
         e.preventDefault();
-        editor.focus();
         editor.format(`h${code.slice(5)}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6");
       }
     }
