@@ -69,7 +69,7 @@ export default defineConfig({
   base: "./",
   plugins: [vditorAssets()],
   server: {
-    host: "0.0.0.0",
+    host: "::",
     port: 47821,
     strictPort: true,
     allowedHosts: true,
@@ -78,7 +78,7 @@ export default defineConfig({
     },
   },
   preview: {
-    host: "0.0.0.0",
+    host: "::",
     port: 47821,
     strictPort: true,
     allowedHosts: true,
