@@ -590,17 +590,21 @@ html.resizing-sidebar * {
 .md-editor .vditor-reset :is(strong, b, [data-type="strong"]) {
   font-weight: 700 !important;
   font-synthesis: weight !important;
-  -webkit-text-stroke: 0.45px currentColor;
-  paint-order: stroke fill;
-  font-family: "WenQuanYi Micro Hei", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Droid Sans Fallback", sans-serif !important;
-  text-shadow: 0.55px 0 0 currentColor, 0.3px 0 0 currentColor;
+  font-family: var(--editor-font) !important;
 }
 
 .md-editor .vditor-reset [data-type="strong"] .vditor-ir__marker {
   font-weight: 400 !important;
-  -webkit-text-stroke: 0;
   font-family: var(--editor-font) !important;
+  -webkit-text-stroke: 0;
   text-shadow: none;
+}
+
+html[data-cjk-font="song"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]),
+html[data-cjk-font="kai"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]),
+html[data-cjk-font="fang"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]) {
+  -webkit-text-stroke: 0.2px currentColor;
+  paint-order: stroke fill;
 }
 
 .md-editor .vditor-reset :is(em, i, [data-type="em"]) {
