@@ -11,35 +11,62 @@ export const THEMES = [
 
 export type ThemeId = (typeof THEMES)[number]["id"];
 
-export const FONTS = [
+export const LATIN_FONTS = [
   {
     id: "serif",
     name: "衬线",
-    css: '"Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif SC", Georgia, serif',
+    sample: "Aa",
+    css: '"Iowan Old Style", "Palatino Linotype", Cambria, Georgia, "Times New Roman"',
   },
   {
     id: "sans",
-    name: "黑体",
-    css: '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif',
-  },
-  {
-    id: "song",
-    name: "宋体",
-    css: '"Songti SC", "Noto Serif SC", SimSun, "Songti SC", PMingLiU, serif',
-  },
-  {
-    id: "kai",
-    name: "楷体",
-    css: 'KaiTi, STKaiti, "Kaiti SC", "Noto Serif SC", serif',
+    name: "无衬线",
+    sample: "Aa",
+    css: '"Segoe UI Variable Text", "Segoe UI", Calibri, Arial',
   },
   {
     id: "mono",
     name: "等宽",
-    css: '"Cascadia Code", Consolas, "Sarasa Mono SC", "Microsoft YaHei UI", monospace',
+    sample: "Aa",
+    css: '"Cascadia Code", Consolas, "Courier New"',
   },
 ] as const;
 
-export type FontId = (typeof FONTS)[number]["id"];
+export const CJK_FONTS = [
+  {
+    id: "song",
+    name: "宋体",
+    sample: "汉字",
+    css: 'SimSun, NSimSun, "Songti SC", "Noto Serif SC", PMingLiU, serif',
+  },
+  {
+    id: "hei",
+    name: "黑体",
+    sample: "汉字",
+    css: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif',
+  },
+  {
+    id: "kai",
+    name: "楷体",
+    sample: "汉字",
+    css: 'KaiTi, STKaiti, "Kaiti SC", "KaiTi_GB2312", serif',
+  },
+  {
+    id: "fang",
+    name: "仿宋",
+    sample: "汉字",
+    css: 'FangSong, STFangsong, "FangSong_GB2312", serif',
+  },
+] as const;
+
+export type LatinFontId = (typeof LATIN_FONTS)[number]["id"];
+export type CjkFontId = (typeof CJK_FONTS)[number]["id"];
+
+export function composeEditorFont(latinId: LatinFontId, cjkId: CjkFontId): string {
+  const latin = LATIN_FONTS.find((f) => f.id === latinId) ?? LATIN_FONTS[0];
+  const cjk = CJK_FONTS.find((f) => f.id === cjkId) ?? CJK_FONTS[0];
+  return `${latin.css}, ${cjk.css}`;
+}
 
 export type Note = {
   id: string;
@@ -57,7 +84,8 @@ export type Meta = {
   sidebar: boolean;
   focus: boolean;
   sidebarWidth: number;
-  font: FontId;
+  latinFont: LatinFontId;
+  cjkFont: CjkFontId;
   fontSize: number;
 };
 

@@ -1,4 +1,4 @@
-import { FONTS, THEMES, type FileNode, type FontId, type ThemeId } from "./types.ts";
+import { CJK_FONTS, LATIN_FONTS, THEMES, type CjkFontId, type FileNode, type LatinFontId, type ThemeId } from "./types.ts";
 import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
 import { nowStamp, titleFromMarkdown } from "./markdown.ts";
@@ -188,11 +188,19 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     b.append(el("i"), t.name);
     themeBox.append(b);
   });
-  const fontBox = el("div", { class: "settings-fonts" });
-  FONTS.forEach((f) => {
-    const b = el("button", { type: "button", class: "font-swatch", "data-font": f.id }, f.name);
+  const latinBox = el("div", { class: "settings-fonts" });
+  LATIN_FONTS.forEach((f) => {
+    const b = el("button", { type: "button", class: "font-swatch", "data-latin": f.id }, f.name);
     b.style.fontFamily = f.css;
-    fontBox.append(b);
+    b.append(el("span", { class: "font-sample" }, f.sample));
+    latinBox.append(b);
+  });
+  const cjkBox = el("div", { class: "settings-fonts" });
+  CJK_FONTS.forEach((f) => {
+    const b = el("button", { type: "button", class: "font-swatch", "data-cjk": f.id }, f.name);
+    b.style.fontFamily = f.css;
+    b.append(el("span", { class: "font-sample" }, f.sample));
+    cjkBox.append(b);
   });
   const sizeLabel = el("span", { class: "size-value" }, "18");
   const sizeInput = el("input", {
@@ -207,7 +215,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     el("h2", {}, "设置"),
     el("section", { class: "settings-section" }, el("h3", {}, "存储"), storagePath, el("div", { class: "storage-actions" }, pickBtn), storageHint),
     el("section", { class: "settings-section" }, el("h3", {}, "主题"), themeBox),
-    el("section", { class: "settings-section" }, el("h3", {}, "字体"), fontBox),
+    el("section", { class: "settings-section" }, el("h3", {}, "西文"), latinBox),
+    el("section", { class: "settings-section" }, el("h3", {}, "中文"), cjkBox),
     el("section", { class: "settings-section" }, el("h3", {}, "字号"), el("div", { class: "size-row" }, sizeInput, sizeLabel, " px")),
   );
   settingsPop.append(settingsSheet);
@@ -226,8 +235,11 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     themeBox.querySelectorAll(".theme-swatch").forEach((n) => {
       n.classList.toggle("active", (n as HTMLElement).dataset.theme === m.theme);
     });
-    fontBox.querySelectorAll(".font-swatch").forEach((n) => {
-      n.classList.toggle("active", (n as HTMLElement).dataset.font === m.font);
+    latinBox.querySelectorAll(".font-swatch").forEach((n) => {
+      n.classList.toggle("active", (n as HTMLElement).dataset.latin === m.latinFont);
+    });
+    cjkBox.querySelectorAll(".font-swatch").forEach((n) => {
+      n.classList.toggle("active", (n as HTMLElement).dataset.cjk === m.cjkFont);
     });
     sizeInput.value = String(m.fontSize);
     sizeLabel.textContent = String(m.fontSize);
@@ -650,9 +662,15 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (e.target === settingsPop) settingsPop.hidden = true;
     const themeId = (e.target as HTMLElement).closest("[data-theme]")?.getAttribute("data-theme") as ThemeId | null;
     if (themeId) applyTheme(themeId);
-    const fontId = (e.target as HTMLElement).closest("[data-font]")?.getAttribute("data-font") as FontId | null;
-    if (fontId) {
-      store.setFont(fontId);
+    const latinId = (e.target as HTMLElement).closest("[data-latin]")?.getAttribute("data-latin") as LatinFontId | null;
+    if (latinId) {
+      store.setLatinFont(latinId);
+      paintSettings();
+      editor?.applyChrome();
+    }
+    const cjkId = (e.target as HTMLElement).closest("[data-cjk]")?.getAttribute("data-cjk") as CjkFontId | null;
+    if (cjkId) {
+      store.setCjkFont(cjkId);
       paintSettings();
       editor?.applyChrome();
     }

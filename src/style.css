@@ -135,7 +135,7 @@ body,
 html {
   background: var(--bg);
   color: var(--ink);
-  --editor-font: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif SC", Georgia, serif;
+  --editor-font: "Iowan Old Style", "Palatino Linotype", Cambria, Georgia, "Times New Roman", SimSun, NSimSun, "Songti SC", "Noto Serif SC", PMingLiU, serif;
   --editor-size: 18px;
 }
 
@@ -688,6 +688,15 @@ html.resizing-sidebar * {
   padding: 8px 10px;
   border-radius: 9px;
   font-size: 16px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.font-sample {
+  color: var(--muted);
+  font-size: 15px;
 }
 
 .font-swatch:hover,

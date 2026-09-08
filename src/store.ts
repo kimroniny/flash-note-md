@@ -1,4 +1,15 @@
-import { FONTS, THEMES, type FileNode, type FontId, type Meta, type Note, type ThemeId } from "./types.ts";
+import {
+  CJK_FONTS,
+  LATIN_FONTS,
+  THEMES,
+  composeEditorFont,
+  type CjkFontId,
+  type FileNode,
+  type LatinFontId,
+  type Meta,
+  type Note,
+  type ThemeId,
+} from "./types.ts";
 
 const META_KEY = "flashnote.v1.meta";
 const noteKey = (id: string) => `flashnote.v1.note.${id}`;
@@ -27,7 +38,8 @@ function defaultMeta(): Meta {
     sidebar: true,
     focus: false,
     sidebarWidth: 268,
-    font: "serif",
+    latinFont: "serif",
+    cjkFont: "song",
     fontSize: 18,
   };
 }
@@ -36,10 +48,10 @@ function readMeta(): Meta {
   try {
     const raw = localStorage.getItem(META_KEY);
     if (!raw) return defaultMeta();
-    const parsed = JSON.parse(raw) as Partial<Meta>;
+    const parsed = JSON.parse(raw) as Partial<Meta> & { font?: string };
     const ids = Array.isArray(parsed.ids) ? parsed.ids.filter((x) => typeof x === "string") : [];
     const theme = THEMES.some((t) => t.id === parsed.theme) ? (parsed.theme as ThemeId) : "paper";
-    const font = FONTS.some((f) => f.id === parsed.font) ? (parsed.font as FontId) : "serif";
+    const migrated = migrateFonts(parsed);
     return {
       ids,
       lastId: typeof parsed.lastId === "string" ? parsed.lastId : null,
@@ -47,7 +59,8 @@ function readMeta(): Meta {
       sidebar: parsed.sidebar !== false,
       focus: parsed.focus === true,
       sidebarWidth: clampWidth(typeof parsed.sidebarWidth === "number" ? parsed.sidebarWidth : 268),
-      font,
+      latinFont: migrated.latinFont,
+      cjkFont: migrated.cjkFont,
       fontSize: clampFontSize(typeof parsed.fontSize === "number" ? parsed.fontSize : 18),
     };
   } catch {
@@ -116,11 +129,31 @@ function applySidebarWidth(px: number): void {
   document.documentElement.style.setProperty("--sidebar-width", `${px}px`);
 }
 
-function applyTypography(font: FontId, fontSize: number): void {
-  const spec = FONTS.find((f) => f.id === font) ?? FONTS[0];
-  document.documentElement.style.setProperty("--editor-font", spec.css);
+function migrateFonts(parsed: Partial<Meta> & { font?: string }): { latinFont: LatinFontId; cjkFont: CjkFontId } {
+  const latinOk = LATIN_FONTS.some((f) => f.id === parsed.latinFont);
+  const cjkOk = CJK_FONTS.some((f) => f.id === parsed.cjkFont);
+  if (latinOk && cjkOk) {
+    return { latinFont: parsed.latinFont as LatinFontId, cjkFont: parsed.cjkFont as CjkFontId };
+  }
+  switch (parsed.font) {
+    case "sans":
+      return { latinFont: "sans", cjkFont: "hei" };
+    case "song":
+      return { latinFont: "serif", cjkFont: "song" };
+    case "kai":
+      return { latinFont: "serif", cjkFont: "kai" };
+    case "mono":
+      return { latinFont: "mono", cjkFont: "hei" };
+    default:
+      return { latinFont: "serif", cjkFont: "song" };
+  }
+}
+
+function applyTypography(latinFont: LatinFontId, cjkFont: CjkFontId, fontSize: number): void {
+  document.documentElement.style.setProperty("--editor-font", composeEditorFont(latinFont, cjkFont));
   document.documentElement.style.setProperty("--editor-size", `${fontSize}px`);
-  document.documentElement.setAttribute("data-font", spec.id);
+  document.documentElement.setAttribute("data-latin-font", latinFont);
+  document.documentElement.setAttribute("data-cjk-font", cjkFont);
 }
 
 export const store = {
@@ -146,7 +179,7 @@ export const store = {
   async init(): Promise<void> {
     meta = readMeta();
     applySidebarWidth(meta.sidebarWidth);
-    applyTypography(meta.font, meta.fontSize);
+    applyTypography(meta.latinFont, meta.cjkFont, meta.fontSize);
     desktop = typeof window.flashGetDir === "function" && typeof window.flashList === "function";
     if (!desktop) return;
     storageDir = (await window.flashGetDir?.()) ?? "";
@@ -205,16 +238,22 @@ export const store = {
     document.documentElement.classList.toggle("focus-mode", focus);
   },
 
-  setFont(font: FontId): void {
-    meta = { ...meta, font };
+  setLatinFont(latinFont: LatinFontId): void {
+    meta = { ...meta, latinFont };
     writeMeta(meta);
-    applyTypography(meta.font, meta.fontSize);
+    applyTypography(meta.latinFont, meta.cjkFont, meta.fontSize);
+  },
+
+  setCjkFont(cjkFont: CjkFontId): void {
+    meta = { ...meta, cjkFont };
+    writeMeta(meta);
+    applyTypography(meta.latinFont, meta.cjkFont, meta.fontSize);
   },
 
   setFontSize(px: number): void {
     meta = { ...meta, fontSize: clampFontSize(px) };
     writeMeta(meta);
-    applyTypography(meta.font, meta.fontSize);
+    applyTypography(meta.latinFont, meta.cjkFont, meta.fontSize);
   },
 
   list(): Note[] {
