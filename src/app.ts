@@ -98,6 +98,12 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     ),
     search,
     listEl,
+    el(
+      "div",
+      { class: "sidebar-foot" },
+      el("button", { class: "text-btn", type: "button", "data-act": "settings", title: "设置 Ctrl+," }, "设置"),
+      el("button", { class: "text-btn", type: "button", "data-act": "export", title: "导出 Ctrl+E" }, "导出"),
+    ),
     el("div", { class: "sidebar-resizer", title: "拖动调整宽度" }),
   );
 
@@ -107,8 +113,6 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     el("button", { class: "icon-btn", type: "button", "data-act": "sidebar", title: "目录 Ctrl+\\" }, "☰"),
     noteStamp,
     el("span", { class: "flex" }),
-    el("button", { class: "text-btn", type: "button", "data-act": "settings", title: "设置 Ctrl+," }, "设置"),
-    el("button", { class: "text-btn", type: "button", "data-act": "export", title: "导出 Ctrl+E" }, "导出"),
     el("button", { class: "text-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, "?"),
   );
 
@@ -583,7 +587,10 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     }
     if (act === "sidebar") toggleSidebar();
     if (act === "sidebar-close") closeMobileSidebar();
-    if (act === "settings") openSettings();
+    if (act === "settings") {
+      closeMobileSidebar();
+      openSettings();
+    }
     if (act === "pick-dir") {
       void (async () => {
         const dir = await store.pickDir();
@@ -602,6 +609,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       })();
     }
     if (act === "export") {
+      closeMobileSidebar();
       const n = store.get(currentId);
       if (n) {
         downloadMarkdown(n.title, editor?.getMarkdown() ?? n.content);
