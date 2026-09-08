@@ -135,7 +135,7 @@ body,
 html {
   background: var(--bg);
   color: var(--ink);
-  --editor-font: "Iowan Old Style", "Palatino Linotype", Cambria, Georgia, "Times New Roman", SimSun, NSimSun, "Songti SC", "Noto Serif SC", PMingLiU, serif;
+  --editor-font: "Iowan Old Style", "Palatino Linotype", Cambria, Georgia, "Times New Roman", KaiTi, STKaiti, "Kaiti SC", "KaiTi_GB2312", serif;
   --editor-size: 18px;
 }
 

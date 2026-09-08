@@ -39,7 +39,7 @@ function defaultMeta(): Meta {
     focus: false,
     sidebarWidth: 268,
     latinFont: "serif",
-    cjkFont: "song",
+    cjkFont: "kai",
     fontSize: 18,
   };
 }
@@ -145,7 +145,7 @@ function migrateFonts(parsed: Partial<Meta> & { font?: string }): { latinFont: L
     case "mono":
       return { latinFont: "mono", cjkFont: "hei" };
     default:
-      return { latinFont: "serif", cjkFont: "song" };
+      return { latinFont: "serif", cjkFont: "kai" };
   }
 }
 
