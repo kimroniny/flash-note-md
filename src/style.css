@@ -588,19 +588,21 @@ html.resizing-sidebar * {
 }
 
 .md-editor .vditor-reset :is(strong, b, [data-type="strong"]) {
-  font-weight: 700;
-  font-synthesis: weight;
+  font-weight: 700 !important;
+  font-synthesis: weight !important;
+  font-family: "WenQuanYi Micro Hei", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Droid Sans Fallback", sans-serif !important;
+  text-shadow: 0.55px 0 0 currentColor, 0.3px 0 0 currentColor;
+}
+
+.md-editor .vditor-reset [data-type="strong"] .vditor-ir__marker {
+  font-weight: 400 !important;
+  font-family: var(--editor-font) !important;
+  text-shadow: none;
 }
 
 .md-editor .vditor-reset :is(em, i, [data-type="em"]) {
-  font-style: italic;
-  font-synthesis: style;
-}
-
-html[data-cjk-font="song"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]),
-html[data-cjk-font="fang"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]),
-html[data-cjk-font="kai"] .md-editor .vditor-reset :is(strong, b, [data-type="strong"]) {
-  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-style: italic !important;
+  font-synthesis: style !important;
 }
 
 .md-editor .vditor-ir__marker {
