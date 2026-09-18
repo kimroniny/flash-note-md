@@ -18,7 +18,8 @@
   <a href="#why">Why FlashNote</a> ·
   <a href="#download">Download</a> ·
   <a href="#shortcuts">Shortcuts</a> ·
-  <a href="#development">Development</a>
+  <a href="#development">Development</a> ·
+  <a href="#license">License</a>
 </p>
 
 ---
@@ -119,6 +120,11 @@ Build the Windows app from source:
 ```bash
 bash scripts/build-windows.sh
 ```
+
+<a id="license"></a>
+## 📜 License
+
+Released under the [MIT License](LICENSE). Copyright (c) 2026 kimroniny.
 
 ---
 

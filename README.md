@@ -18,7 +18,8 @@
   <a href="#why">为什么是闪记</a> ·
   <a href="#download">下载安装</a> ·
   <a href="#shortcuts">快捷键</a> ·
-  <a href="#development">开发预览</a>
+  <a href="#development">开发预览</a> ·
+  <a href="#license">协议</a>
 </p>
 
 ---
@@ -121,6 +122,11 @@ npm run dev
 ```bash
 bash scripts/build-windows.sh
 ```
+
+<a id="license"></a>
+## 📜 开源协议
+
+[MIT License](LICENSE) © 2026 kimroniny
 
 ---
 
