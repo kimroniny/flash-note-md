@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="720" viewBox="0 0 1440 720" role="img" aria-labelledby="title desc">
+  <title id="title">&#x95EA;&#x8BB0;&#x2014;&#x2014;&#x4E0D;&#x662F;&#x7B14;&#x8BB0;&#x8F6F;&#x4EF6;&#xFF0C;&#x662F;&#x4F1A;&#x8BAE;&#x5916;&#x6302;</title>
+  <desc id="desc">&#x95EA;&#x73B0;&#x8FDB;&#x573A;&#xFF0C;&#x7535;&#x5149;&#x843D;&#x5B57;&#xFF0C;&#x539F;&#x5730;&#x84B8;&#x53D1;&#x3002;&#x6765;&#x65E0;&#x5F71;&#xFF0C;&#x5B57;&#x6709;&#x75D5;&#xFF0C;&#x53BB;&#x65E0;&#x8E2A;&#x3002;</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#020617"/>
+      <stop offset=".5" stop-color="#07152a"/>
+      <stop offset="1" stop-color="#02030a"/>
+    </linearGradient>
+    <radialGradient id="flare">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".08" stop-color="#bffcff"/>
+      <stop offset=".25" stop-color="#22d3ee" stop-opacity=".8"/>
+      <stop offset=".7" stop-color="#0891b2" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#0891b2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="type" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#fff"/>
+      <stop offset=".55" stop-color="#d9fbff"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#22d3ee" stroke-opacity=".055"/>
+    </pattern>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+
+  <rect width="1440" height="720" rx="32" fill="url(#bg)"/>
+  <rect width="1440" height="720" rx="32" fill="url(#grid)"/>
+  <ellipse cx="1105" cy="350" rx="390" ry="300" fill="#06b6d4" opacity=".06" filter="url(#softGlow)"/>
+
+  <g opacity=".9" filter="url(#glow)">
+    <path d="M-20 370 L105 352 L156 382 L218 327 L268 358 L329 271 L362 333 L445 292"
+          fill="none" stroke="#67e8f9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M15 402 L142 383 L196 407 L253 371 L326 395 L380 351 L470 355"
+          fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round"/>
+    <path d="M171 382 L138 430 M219 328 L190 277 M328 273 L296 211 M360 333 L407 393"
+          fill="none" stroke="#22d3ee" stroke-width="2"/>
+  </g>
+  <circle cx="454" cy="328" r="185" fill="url(#flare)"/>
+  <path d="M476 176 L395 320 H458 L423 465 L553 286 H481 Z"
+        fill="#f8feff" stroke="#67e8f9" stroke-width="4" filter="url(#glow)"/>
+
+  <g font-family="'Noto Sans SC','Microsoft YaHei','PingFang SC',system-ui,sans-serif">
+    <text x="675" y="197" fill="#67e8f9" font-size="24" font-weight="700" letter-spacing="9">FLASHNOTE / &#x95EA;&#x8BB0;</text>
+    <text x="670" y="306" fill="url(#type)" font-size="68" font-weight="900" letter-spacing="2">&#x4E0D;&#x662F;&#x7B14;&#x8BB0;&#x8F6F;&#x4EF6;&#x3002;</text>
+    <text x="670" y="397" fill="url(#type)" font-size="68" font-weight="900" letter-spacing="2">&#x662F;&#x4F1A;&#x8BAE;&#x5916;&#x6302;&#x3002;</text>
+
+    <g transform="translate(674 450)" font-size="22" font-weight="700">
+      <g>
+        <rect width="154" height="54" rx="27" fill="#083344" stroke="#22d3ee" stroke-opacity=".55"/>
+        <text x="77" y="35" fill="#cffafe" text-anchor="middle">&#x95EA;&#x73B0;&#x8FDB;&#x573A;</text>
+      </g>
+      <g transform="translate(174)">
+        <rect width="154" height="54" rx="27" fill="#083344" stroke="#22d3ee" stroke-opacity=".55"/>
+        <text x="77" y="35" fill="#cffafe" text-anchor="middle">&#x7535;&#x5149;&#x843D;&#x5B57;</text>
+      </g>
+      <g transform="translate(348)">
+        <rect width="154" height="54" rx="27" fill="#083344" stroke="#22d3ee" stroke-opacity=".55"/>
+        <text x="77" y="35" fill="#cffafe" text-anchor="middle">&#x539F;&#x5730;&#x84B8;&#x53D1;</text>
+      </g>
+    </g>
+    <text x="675" y="577" fill="#94a3b8" font-size="25" letter-spacing="5">&#x6765;&#x65E0;&#x5F71; &#xB7; &#x5B57;&#x6709;&#x75D5; &#xB7; &#x53BB;&#x65E0;&#x8E2A;</text>
+  </g>
+
+  <g transform="translate(1265 92)" fill="none" stroke="#22d3ee">
+    <circle cx="0" cy="0" r="22" opacity=".24"/>
+    <circle cx="0" cy="0" r="7" fill="#67e8f9" filter="url(#glow)"/>
+    <path d="M-45 0H-29 M29 0H45 M0-45V-29 M0 29V45" opacity=".55"/>
+  </g>
+  <path d="M1215 638 H1360" stroke="#22d3ee" stroke-width="2" opacity=".35"/>
+  <path d="M1260 650 H1360" stroke="#22d3ee" stroke-width="2" opacity=".18"/>
+</svg>

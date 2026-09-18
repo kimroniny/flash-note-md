@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="720" viewBox="0 0 1440 720" role="img" aria-labelledby="title desc">
+  <title id="title">FlashNote - meeting notes at full speed</title>
+  <desc id="desc">Open fast. Capture everything. Get out of the way.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#020617"/>
+      <stop offset=".5" stop-color="#07152a"/>
+      <stop offset="1" stop-color="#02030a"/>
+    </linearGradient>
+    <radialGradient id="flare">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".08" stop-color="#bffcff"/>
+      <stop offset=".25" stop-color="#22d3ee" stop-opacity=".8"/>
+      <stop offset=".7" stop-color="#0891b2" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#0891b2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="type" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#fff"/>
+      <stop offset=".55" stop-color="#d9fbff"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#22d3ee" stroke-opacity=".055"/>
+    </pattern>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+
+  <rect width="1440" height="720" rx="32" fill="url(#bg)"/>
+  <rect width="1440" height="720" rx="32" fill="url(#grid)"/>
+  <ellipse cx="1105" cy="350" rx="390" ry="300" fill="#06b6d4" opacity=".06" filter="url(#softGlow)"/>
+
+  <g opacity=".9" filter="url(#glow)">
+    <path d="M-20 370 L105 352 L156 382 L218 327 L268 358 L329 271 L362 333 L445 292"
+          fill="none" stroke="#67e8f9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M15 402 L142 383 L196 407 L253 371 L326 395 L380 351 L470 355"
+          fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round"/>
+    <path d="M171 382 L138 430 M219 328 L190 277 M328 273 L296 211 M360 333 L407 393"
+          fill="none" stroke="#22d3ee" stroke-width="2"/>
+  </g>
+  <circle cx="454" cy="328" r="185" fill="url(#flare)"/>
+  <path d="M476 176 L395 320 H458 L423 465 L553 286 H481 Z"
+        fill="#f8feff" stroke="#67e8f9" stroke-width="4" filter="url(#glow)"/>
+
+  <g font-family="Inter,'Segoe UI',system-ui,sans-serif">
+    <text x="675" y="197" fill="#67e8f9" font-size="22" font-weight="700" letter-spacing="8">FLASHNOTE / &#x95EA;&#x8BB0;</text>
+    <text x="670" y="298" fill="url(#type)" font-size="52" font-weight="900">Meeting notes.</text>
+    <text x="670" y="372" fill="url(#type)" font-size="52" font-weight="900">At full speed.</text>
+
+    <g transform="translate(670 430)" font-size="18" font-weight="700">
+      <g>
+        <rect width="168" height="50" rx="25" fill="#083344" stroke="#22d3ee" stroke-opacity=".55"/>
+        <text x="84" y="32" fill="#cffafe" text-anchor="middle">OPEN FAST</text>
+      </g>
+      <g transform="translate(184)">
+        <rect width="196" height="50" rx="25" fill="#083344" stroke="#22d3ee" stroke-opacity=".55"/>
+        <text x="98" y="32" fill="#cffafe" text-anchor="middle">WRITE IT DOWN</text>
+      </g>
+      <g transform="translate(396)">
+        <rect width="132" height="50" rx="25" fill="#083344" stroke="#22d3ee" stroke-opacity=".55"/>
+        <text x="66" y="32" fill="#cffafe" text-anchor="middle">MOVE ON</text>
+      </g>
+    </g>
+    <text x="675" y="562" fill="#94a3b8" font-size="22" letter-spacing="3">No delay. No distraction.</text>
+  </g>
+
+  <g transform="translate(1265 92)" fill="none" stroke="#22d3ee">
+    <circle cx="0" cy="0" r="22" opacity=".24"/>
+    <circle cx="0" cy="0" r="7" fill="#67e8f9" filter="url(#glow)"/>
+    <path d="M-45 0H-29 M29 0H45 M0-45V-29 M0 29V45" opacity=".55"/>
+  </g>
+  <path d="M1215 638 H1360" stroke="#22d3ee" stroke-width="2" opacity=".35"/>
+  <path d="M1260 650 H1360" stroke="#22d3ee" stroke-width="2" opacity=".18"/>
+</svg>

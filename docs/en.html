@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlashNote — Meeting notes at full speed</title>
+  <meta name="description" content="FlashNote is Markdown for meetings: open fast, capture everything, get out of the way.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top">FLASHNOTE / 闪记</a>
+      <nav class="nav-links">
+        <a href="#download">Download</a>
+        <a href="#why">Why</a>
+        <a href="#guide">Guide</a>
+        <a href="https://github.com/kimroniny/flash-note-md">GitHub</a>
+      </nav>
+      <div class="lang">
+        <a href="index.html">中文</a>
+        <span class="is-active">English</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <div class="kicker">FLASHNOTE</div>
+        <h1>Meeting notes<br>at full speed.</h1>
+        <p class="lede">Open fast. Capture everything. Get out of the way.</p>
+      </div>
+      <img class="poster" src="assets/flashnote-hero.en.svg" alt="FlashNote poster: open fast, write it down, move on">
+      <div class="actions">
+        <a class="btn btn-primary" href="#download">Download</a>
+        <a class="btn btn-ghost" href="https://github.com/kimroniny/flash-note-md">View source</a>
+      </div>
+    </section>
+
+    <section id="download" class="wrap">
+      <h2 class="section-title">Download</h2>
+      <div class="req">
+        <p>Windows only for now. Requires Microsoft Edge or WebView2. No administrator rights needed.</p>
+        <p>macOS and Linux builds are in the works.</p>
+      </div>
+      <div class="grid" style="margin-top: 22px;">
+        <article class="card">
+          <h3>Windows installer</h3>
+          <p>Double-click to install for your user account. Run a newer installer to upgrade in place.</p>
+          <p class="note">Default notes folder: Documents\闪记</p>
+          <div class="actions" style="justify-content: flex-start; margin: 18px 0 0;">
+            <a class="btn btn-primary" href="https://github.com/kimroniny/flash-note-md/raw/main/release/FlashNote-Setup.exe">Get FlashNote-Setup.exe</a>
+          </div>
+        </article>
+        <article class="card">
+          <h3>Portable build</h3>
+          <p>Skip setup. Download, open, write, close.</p>
+          <p class="note">To remove the installed app: Windows Settings → Apps → 闪记</p>
+          <div class="actions" style="justify-content: flex-start; margin: 18px 0 0;">
+            <a class="btn btn-ghost" href="https://github.com/kimroniny/flash-note-md/raw/main/release/FlashNote.exe">Get FlashNote.exe</a>
+          </div>
+        </article>
+      </div>
+      <p class="note">No Edge? Install the <a href="https://go.microsoft.com/fwlink/p/?LinkId=2124703">WebView2 Runtime</a> first.</p>
+    </section>
+
+    <section id="why" class="wrap">
+      <h2 class="section-title">Why FlashNote</h2>
+      <div class="grid">
+        <article class="card"><h3>Ready immediately</h3><p>Launch straight into your recent notes. No setup ritual.</p></article>
+        <article class="card"><h3>Made for Markdown</h3><p>Vditor renders as you type, with a clean Typora-like experience.</p></article>
+        <article class="card"><h3>Plain files, your folder</h3><p>Every note is a local .md file you can keep, move, or edit anywhere.</p></article>
+        <article class="card"><h3>Easy to dismiss</h3><p>Focus when you need it. Close the app when you don’t.</p></article>
+      </div>
+    </section>
+
+    <section id="guide" class="wrap">
+      <h2 class="section-title">How to use it</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Key</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Ctrl+N</kbd></td><td>New meeting note</td></tr>
+            <tr><td><kbd>Ctrl+K</kbd></td><td>Find and open a note</td></tr>
+            <tr><td><kbd>Ctrl+;</kbd></td><td>Insert current time</td></tr>
+            <tr><td><kbd>Ctrl+S</kbd></td><td>Save immediately</td></tr>
+            <tr><td><kbd>Ctrl+E</kbd></td><td>Export as Markdown</td></tr>
+            <tr><td><kbd>Ctrl+\</kbd></td><td>Toggle the sidebar</td></tr>
+            <tr><td><kbd>Ctrl+Shift+F</kbd></td><td>Toggle focus mode</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details>
+        <summary>All editing shortcuts</summary>
+        <div class="table-wrap" style="border: 0; background: transparent;">
+          <table>
+            <tbody>
+              <tr><td><kbd>Ctrl+A</kbd></td><td>Select all in the current note</td></tr>
+              <tr><td><kbd>Ctrl+B</kbd></td><td>Bold</td></tr>
+              <tr><td><kbd>Ctrl+I</kbd></td><td>Italic</td></tr>
+              <tr><td><kbd>Ctrl+U</kbd></td><td>Underline</td></tr>
+              <tr><td><kbd>Ctrl+1</kbd> … <kbd>Ctrl+6</kbd></td><td>Heading 1–6</td></tr>
+              <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>Indent / outdent lists</td></tr>
+              <tr><td><kbd>Ctrl+,</kbd></td><td>Settings</td></tr>
+              <tr><td><kbd>Ctrl+Shift+T</kbd></td><td>Next theme</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="note">Just write Markdown: <code># heading</code> · <code>- list</code> · <code>- [ ] todo</code> · <code>&gt; quote</code> · <code>**bold**</code></p>
+      <div class="chips">
+        <span class="chip">Daylight</span><span class="chip">Ink Night</span><span class="chip">Parchment</span><span class="chip">Forest</span>
+        <span class="chip">Deep Sea</span><span class="chip">Sakura</span><span class="chip">Graphite</span><span class="chip">High Contrast</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <div>
+      <strong>Keep up with the room.</strong>
+      <div>Open fast. Write it down. Move on.</div>
+    </div>
+    <div>
+      <a href="https://github.com/kimroniny/flash-note-md/blob/main/LICENSE">MIT License</a>
+      · © 2026 kimroniny
+    </div>
+  </footer>
+</body>
+</html>
