@@ -9,6 +9,7 @@ export type EditorHandle = {
   focus(): void;
   selectAll(): void;
   format(cmd: FormatCmd): void;
+  find(query: string, dir?: -1 | 0 | 1): { index: number; total: number };
   applyChrome(): void;
   destroy(): void;
 };
@@ -37,6 +38,8 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
   let queued: string | null = null;
   let wantFocus = false;
   let instance: Vditor | null = null;
+  let findQuery = "";
+  let findIndex = -1;
 
   root.className = "editor-root";
   const host = document.createElement("div");
@@ -271,6 +274,8 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
         return;
       }
       instance.setValue(md, true);
+      findQuery = "";
+      findIndex = -1;
       if (focusEnd) instance.focus();
     },
     insert(text: string) {
@@ -298,6 +303,57 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       const sel = window.getSelection();
       sel?.removeAllRanges();
       sel?.addRange(range);
+    },
+    find(query: string, dir: -1 | 0 | 1 = 0) {
+      const pre = host.querySelector(".vditor-ir pre") ?? host.querySelector("[contenteditable='true']");
+      const needle = query.trim().toLowerCase();
+      if (!(pre instanceof HTMLElement) || !needle) {
+        findQuery = "";
+        findIndex = -1;
+        return { index: 0, total: 0 };
+      }
+      const hits: { node: Text; start: number; end: number }[] = [];
+      const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const el = (node as Text).parentElement;
+          if (!el) return NodeFilter.FILTER_REJECT;
+          if (el.closest(".vditor-ir__marker")) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent ?? "";
+        const lower = text.toLowerCase();
+        let from = 0;
+        while (from < lower.length) {
+          const i = lower.indexOf(needle, from);
+          if (i < 0) break;
+          hits.push({ node: node as Text, start: i, end: i + needle.length });
+          from = i + needle.length;
+        }
+      }
+      if (hits.length === 0) {
+        findQuery = needle;
+        findIndex = -1;
+        return { index: 0, total: 0 };
+      }
+      let idx: number;
+      if (findQuery !== needle || findIndex < 0) idx = dir < 0 ? hits.length - 1 : 0;
+      else if (dir === 0) idx = Math.min(findIndex, hits.length - 1);
+      else idx = (findIndex + dir + hits.length) % hits.length;
+      findQuery = needle;
+      findIndex = idx;
+      const hit = hits[idx];
+      if (!hit) return { index: 0, total: hits.length };
+      const range = document.createRange();
+      range.setStart(hit.node, hit.start);
+      range.setEnd(hit.node, hit.end);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      hit.node.parentElement?.scrollIntoView({ block: "center", inline: "nearest" });
+      return { index: idx + 1, total: hits.length };
     },
     format,
     applyChrome() {

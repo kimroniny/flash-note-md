@@ -39,8 +39,9 @@ FlashNote is built for the seconds between hearing something important and losin
 | **Ready immediately** | Launch straight into your recent notes—no setup ritual |
 | **Made for Markdown** | Vditor renders as you type, with a clean Typora-like experience |
 | **Plain files, your folder** | Every note is a local `.md` file you can keep, move, or edit anywhere |
-| **Fast to find** | Press `Ctrl+K` to jump back to any note |
+| **Fast to find** | `Ctrl+K` jumps to a note; `Ctrl+F` searches inside it |
 | **Easy to dismiss** | Focus when you need it; close the app when you don't |
+| **Undo a delete** | Deleted notes go to Trash first |
 
 Your notes stay visible, portable, and independent of FlashNote.
 
@@ -73,6 +74,7 @@ Want to skip installation? Download the **[portable FlashNote.exe](release/Flash
 | --- | --- |
 | `Ctrl+N` | New meeting note |
 | `Ctrl+K` | Find and open a note |
+| `Ctrl+F` | Find in the current note |
 | `Ctrl+;` | Insert current time |
 | `Ctrl+S` | Save immediately |
 | `Ctrl+E` | Export as Markdown |

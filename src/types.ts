@@ -97,3 +97,13 @@ export type FileNode = {
   updatedAt: number;
   children?: FileNode[];
 };
+
+export type TrashItem = {
+  id: string;
+  noteId: string;
+  title: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number;
+};

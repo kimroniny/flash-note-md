@@ -12,5 +12,10 @@ declare global {
     flashWrite?: (rel: string, content: string) => Promise<void>;
     flashCreate?: (title: string, content: string) => Promise<string>;
     flashDelete?: (rel: string) => Promise<void>;
+    flashTrash?: (rel: string) => Promise<void>;
+    flashTrashList?: () => Promise<import("./types.ts").TrashItem[]>;
+    flashRestore?: (id: string) => Promise<string>;
+    flashPurge?: (id: string) => Promise<void>;
+    flashEmptyTrash?: () => Promise<void>;
   }
 }

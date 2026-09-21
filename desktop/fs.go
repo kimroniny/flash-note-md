@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/jchv/go-webview2"
@@ -281,6 +282,229 @@ func deleteNoteFile(rel string) error {
 	return os.Remove(abs)
 }
 
+const trashDirName = ".trash"
+
+type trashItem struct {
+	ID        string `json:"id"`
+	NoteID    string `json:"noteId"`
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+	DeletedAt int64  `json:"deletedAt"`
+	File      string `json:"file"`
+}
+
+func trashDir() (string, error) {
+	root, err := ensureStorageDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(root, trashDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+func trashIndexPath(dir string) string {
+	return filepath.Join(dir, "index.json")
+}
+
+func readTrashIndex(dir string) []trashItem {
+	raw, err := os.ReadFile(trashIndexPath(dir))
+	if err != nil {
+		return nil
+	}
+	var items []trashItem
+	if json.Unmarshal(raw, &items) != nil {
+		return nil
+	}
+	return items
+}
+
+func writeTrashIndex(dir string, items []trashItem) error {
+	if items == nil {
+		items = []trashItem{}
+	}
+	data, err := json.MarshalIndent(items, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(trashIndexPath(dir), data, 0o644)
+}
+
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return err
+	}
+	return os.Remove(src)
+}
+
+func trashNoteFile(rel string) error {
+	abs, err := absInRoot(rel)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("不能删除文件夹")
+	}
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		return err
+	}
+	dir, err := trashDir()
+	if err != nil {
+		return err
+	}
+	title := titleFromContent(string(raw), strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel)))
+	stored := uniqueMarkdownName(dir, sanitizeFileName(title))
+	if err := moveFile(abs, filepath.Join(dir, stored)); err != nil {
+		return err
+	}
+	item := trashItem{
+		ID:        fmt.Sprintf("t_%d_%d", time.Now().UnixMilli(), time.Now().UnixNano()%1000),
+		NoteID:    filepath.ToSlash(rel),
+		Title:     title,
+		CreatedAt: info.ModTime().UnixMilli(),
+		UpdatedAt: info.ModTime().UnixMilli(),
+		DeletedAt: time.Now().UnixMilli(),
+		File:      stored,
+	}
+	items := append([]trashItem{item}, readTrashIndex(dir)...)
+	return writeTrashIndex(dir, items)
+}
+
+func listTrash() ([]trashItem, error) {
+	dir, err := trashDir()
+	if err != nil {
+		return nil, err
+	}
+	orig := readTrashIndex(dir)
+	kept := make([]trashItem, 0, len(orig))
+	for _, it := range orig {
+		raw, err := os.ReadFile(filepath.Join(dir, it.File))
+		if err != nil {
+			continue
+		}
+		it.Content = string(raw)
+		if it.Title == "" {
+			it.Title = titleFromContent(it.Content, strings.TrimSuffix(it.File, filepath.Ext(it.File)))
+		}
+		kept = append(kept, it)
+	}
+	if len(kept) != len(orig) {
+		slim := make([]trashItem, len(kept))
+		for i, it := range kept {
+			slim[i] = it
+			slim[i].Content = ""
+		}
+		_ = writeTrashIndex(dir, slim)
+	}
+	return kept, nil
+}
+
+func restoreTrash(id string) (string, error) {
+	dir, err := trashDir()
+	if err != nil {
+		return "", err
+	}
+	items := readTrashIndex(dir)
+	idx := -1
+	var item trashItem
+	for i, it := range items {
+		if it.ID == id {
+			idx = i
+			item = it
+			break
+		}
+	}
+	if idx < 0 {
+		return "", fmt.Errorf("找不到该条目")
+	}
+	src := filepath.Join(dir, item.File)
+	root, err := ensureStorageDir()
+	if err != nil {
+		return "", err
+	}
+	destRel := item.NoteID
+	destAbs, err := absInRoot(destRel)
+	if err != nil {
+		name := uniqueMarkdownName(root, sanitizeFileName(item.Title))
+		destRel = name
+		destAbs = filepath.Join(root, name)
+	} else if _, statErr := os.Stat(destAbs); statErr == nil {
+		parent := filepath.Dir(destAbs)
+		base := sanitizeFileName(strings.TrimSuffix(filepath.Base(destRel), filepath.Ext(destRel)))
+		name := uniqueMarkdownName(parent, base)
+		destAbs = filepath.Join(parent, name)
+		rel, relErr := filepath.Rel(root, destAbs)
+		if relErr != nil {
+			return "", relErr
+		}
+		destRel = filepath.ToSlash(rel)
+	}
+	if err := os.MkdirAll(filepath.Dir(destAbs), 0o755); err != nil {
+		return "", err
+	}
+	if err := moveFile(src, destAbs); err != nil {
+		return "", err
+	}
+	items = append(items[:idx], items[idx+1:]...)
+	if err := writeTrashIndex(dir, items); err != nil {
+		return "", err
+	}
+	return destRel, nil
+}
+
+func purgeTrash(id string) error {
+	dir, err := trashDir()
+	if err != nil {
+		return err
+	}
+	items := readTrashIndex(dir)
+	kept := make([]trashItem, 0, len(items))
+	found := false
+	for _, it := range items {
+		if it.ID == id {
+			found = true
+			_ = os.Remove(filepath.Join(dir, it.File))
+			continue
+		}
+		kept = append(kept, it)
+	}
+	if !found {
+		return fmt.Errorf("找不到该条目")
+	}
+	return writeTrashIndex(dir, kept)
+}
+
+func emptyTrash() error {
+	dir, err := trashDir()
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, ent := range entries {
+		_ = os.RemoveAll(filepath.Join(dir, ent.Name()))
+	}
+	return writeTrashIndex(dir, nil)
+}
+
 type browseInfo struct {
 	hwndOwner      uintptr
 	pidlRoot       uintptr
@@ -358,6 +582,11 @@ func bindDesktop(w webview2.WebView) error {
 		{"flashWrite", func(rel, content string) error { return writeNoteFile(rel, content) }},
 		{"flashCreate", func(title, content string) (string, error) { return createNoteFile(title, content) }},
 		{"flashDelete", func(rel string) error { return deleteNoteFile(rel) }},
+		{"flashTrash", func(rel string) error { return trashNoteFile(rel) }},
+		{"flashTrashList", func() ([]trashItem, error) { return listTrash() }},
+		{"flashRestore", func(id string) (string, error) { return restoreTrash(id) }},
+		{"flashPurge", func(id string) error { return purgeTrash(id) }},
+		{"flashEmptyTrash", func() error { return emptyTrash() }},
 	}
 	for _, b := range binds {
 		if err := w.Bind(b.name, b.fn); err != nil {

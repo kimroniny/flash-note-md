@@ -9,10 +9,13 @@ import {
   type Meta,
   type Note,
   type ThemeId,
+  type TrashItem,
 } from "./types.ts";
 
 const META_KEY = "flashnote.v1.meta";
+const TRASH_KEY = "flashnote.v1.trash";
 const noteKey = (id: string) => `flashnote.v1.note.${id}`;
+const TRASH_MAX = 80;
 const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 520;
 
@@ -100,6 +103,22 @@ function readNote(id: string): Note | null {
 function writeNote(note: Note): void {
   noteCache.set(note.id, note);
   localStorage.setItem(noteKey(note.id), JSON.stringify(note));
+}
+
+function readTrash(): TrashItem[] {
+  try {
+    const raw = localStorage.getItem(TRASH_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as TrashItem[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((t) => t && typeof t.id === "string" && typeof t.noteId === "string");
+  } catch {
+    return [];
+  }
+}
+
+function writeTrash(items: TrashItem[]): void {
+  localStorage.setItem(TRASH_KEY, JSON.stringify(items.slice(0, TRASH_MAX)));
 }
 
 function flattenFiles(nodes: FileNode[], out: Note[] = []): Note[] {
@@ -365,9 +384,11 @@ export const store = {
   },
 
   async remove(id: string): Promise<void> {
-    noteCache.delete(id);
-    if (desktop) {
-      await window.flashDelete?.(id);
+    const note = (await this.load(id)) ?? this.get(id);
+    if (!note) return;
+    if (desktop && window.flashTrash) {
+      await window.flashTrash(id);
+      noteCache.delete(id);
       await this.refresh();
       if (meta.lastId === id) {
         meta = { ...meta, lastId: this.list()[0]?.id ?? null };
@@ -375,10 +396,85 @@ export const store = {
       }
       return;
     }
+    if (desktop) {
+      await window.flashDelete?.(id);
+      noteCache.delete(id);
+      await this.refresh();
+      if (meta.lastId === id) {
+        meta = { ...meta, lastId: this.list()[0]?.id ?? null };
+        writeMeta(meta);
+      }
+      return;
+    }
+    const item: TrashItem = {
+      id: uid(),
+      noteId: note.id,
+      title: note.title,
+      content: note.content,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+      deletedAt: Date.now(),
+    };
+    writeTrash([item, ...readTrash().filter((t) => t.noteId !== id)]);
+    noteCache.delete(id);
     localStorage.removeItem(noteKey(id));
     const ids = meta.ids.filter((x) => x !== id);
     meta = { ...meta, ids, lastId: meta.lastId === id ? (ids[0] ?? null) : meta.lastId };
     writeMeta(meta);
+  },
+
+  async trashList(): Promise<TrashItem[]> {
+    if (desktop && window.flashTrashList) {
+      return (await window.flashTrashList()) ?? [];
+    }
+    return readTrash().sort((a, b) => b.deletedAt - a.deletedAt);
+  },
+
+  async restore(trashId: string): Promise<Note | null> {
+    if (desktop && window.flashRestore) {
+      const path = await window.flashRestore(trashId);
+      await this.refresh();
+      const note = await this.load(path);
+      if (note) {
+        meta = { ...meta, lastId: note.id };
+        writeMeta(meta);
+      }
+      return note;
+    }
+    const items = readTrash();
+    const item = items.find((t) => t.id === trashId);
+    if (!item) return null;
+    writeTrash(items.filter((t) => t.id !== trashId));
+    const taken = new Set(meta.ids);
+    const id = taken.has(item.noteId) ? uid() : item.noteId;
+    const note: Note = {
+      id,
+      title: item.title || "未命名",
+      content: item.content ?? "",
+      createdAt: item.createdAt || Date.now(),
+      updatedAt: Date.now(),
+      pinned: false,
+    };
+    writeNote(note);
+    meta = { ...meta, ids: [note.id, ...meta.ids.filter((x) => x !== note.id)], lastId: note.id };
+    writeMeta(meta);
+    return note;
+  },
+
+  async purge(trashId: string): Promise<void> {
+    if (desktop && window.flashPurge) {
+      await window.flashPurge(trashId);
+      return;
+    }
+    writeTrash(readTrash().filter((t) => t.id !== trashId));
+  },
+
+  async emptyTrash(): Promise<void> {
+    if (desktop && window.flashEmptyTrash) {
+      await window.flashEmptyTrash();
+      return;
+    }
+    writeTrash([]);
   },
 
   async pickDir(): Promise<string | null> {

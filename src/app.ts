@@ -103,22 +103,40 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       "div",
       { class: "sidebar-foot" },
       el("button", { class: "text-btn", type: "button", "data-act": "settings", title: "设置 Ctrl+," }, "设置"),
+      el("button", { class: "text-btn", type: "button", "data-act": "trash", title: "回收站" }, "回收站"),
       el("button", { class: "text-btn", type: "button", "data-act": "export", title: "导出 Ctrl+E" }, "导出"),
     ),
     el("div", { class: "sidebar-resizer", title: "拖动调整宽度" }),
   );
 
+  const findBar = el("div", { class: "find-bar", hidden: "" });
+  const findInput = el("input", {
+    class: "find-input",
+    type: "search",
+    placeholder: "在笔记中查找",
+    "aria-label": "在笔记中查找",
+  });
+  const findCount = el("span", { class: "find-count" });
+  findBar.append(
+    findInput,
+    findCount,
+    el("button", { class: "icon-btn", type: "button", "data-act": "find-prev", title: "上一个" }, "↑"),
+    el("button", { class: "icon-btn", type: "button", "data-act": "find-next", title: "下一个" }, "↓"),
+    el("button", { class: "icon-btn", type: "button", "data-act": "find-close", title: "关闭" }, "×"),
+  );
   const topbar = el(
     "header",
     { class: "topbar" },
     el("button", { class: "icon-btn", type: "button", "data-act": "sidebar", title: "目录 Ctrl+\\" }, "☰"),
     noteStamp,
     el("span", { class: "flex" }),
+    findBar,
     el("button", { class: "text-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, "?"),
   );
 
+  const trashPop = el("div", { class: "overlay trash", hidden: "" });
   const main = el("div", { class: "main" }, topbar, el("div", { class: "editor-scroll" }, homeEl, editorRoot));
-  host.append(sidebar, main, backdrop, settingsPop, palette, helpPop, toast);
+  host.append(sidebar, main, backdrop, settingsPop, palette, helpPop, trashPop, toast);
 
   const narrowMq = window.matchMedia("(max-width: 800px)");
   let mobileOpen = false;
@@ -160,7 +178,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       <p>启动后中间是最近笔记。点一篇再写；点 + 或 Ctrl+N 新建空白笔记，标题自己打。</p>
       <dl>
         <div><dt>Ctrl + N</dt><dd>新建空白笔记</dd></div>
-        <div><dt>Ctrl + K</dt><dd>搜索 / 跳转</dd></div>
+        <div><dt>Ctrl + K</dt><dd>搜索 / 跳转笔记</dd></div>
+        <div><dt>Ctrl + F</dt><dd>在当前笔记中查找</dd></div>
         <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
         <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
         <div><dt>Ctrl + B</dt><dd>粗体</dd></div>
@@ -177,7 +196,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         <div><dt>Ctrl + S</dt><dd>立即保存</dd></div>
         <div><dt>Enter</dt><dd>下一段；列表中继续一条</dd></div>
       </dl>
-      <p class="hint">拖动左侧目录边缘可调整宽度。Tab / Shift+Tab 缩进或取消缩进列表。Ctrl+, 打开设置。</p>
+      <p class="hint">拖动左侧目录边缘可调整宽度。删除的笔记在回收站，可恢复。Ctrl+F 在当前笔记中查找。Tab / Shift+Tab 缩进列表。Ctrl+, 打开设置。</p>
     </div>`;
 
   const settingsSheet = el("div", { class: "sheet settings-sheet", role: "dialog", "aria-label": "设置" });
@@ -432,7 +451,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     const menu = el("div", { class: "row-menu" });
     const pin = el("button", { type: "button" }, n.pinned ? "取消置顶" : "置顶");
     const dup = el("button", { type: "button" }, "复制");
-    const del = el("button", { type: "button", class: "danger" }, "删除");
+    const del = el("button", { type: "button", class: "danger" }, "移到回收站");
     pin.onclick = () => {
       store.save(id, { pinned: !n.pinned });
       closeRowMenu();
@@ -462,8 +481,15 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   const paintHome = () => {
     const notes = store.list().slice(0, 16);
-    const head = el("h1", {}, "最近");
+    const head = el("div", { class: "home-head" });
+    head.append(el("h1", {}, "最近"));
+    const trashLink = el("button", { class: "text-btn home-trash", type: "button", "data-act": "trash" }, "回收站");
+    void store.trashList().then((items) => {
+      trashLink.textContent = items.length ? `回收站 ${items.length}` : "回收站";
+    });
+    head.append(trashLink);
     const lede = el("p", { class: "lede" }, notes.length ? "从一篇接着写，或新建空白笔记。" : "还没有笔记。新建一篇，标题自己打。");
+    const createBtn = el("button", { class: "home-new", type: "button", "data-act": "new", tabindex: "0" }, "新建笔记");
     const list = el("div", { class: "home-list" });
     for (const n of notes) {
       const item = el(
@@ -474,13 +500,13 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       );
       list.append(item);
     }
-    const createBtn = el("button", { class: "home-new", type: "button", "data-act": "new", tabindex: "0" }, "新建笔记");
-    homeEl.replaceChildren(head, lede, list, createBtn);
+    homeEl.replaceChildren(head, createBtn, lede, list);
   };
 
   const showHome = () => {
     persist(true);
     currentId = "";
+    closeFind();
     homeEl.hidden = false;
     editorRoot.hidden = true;
     document.title = "闪记";
@@ -513,8 +539,103 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     await openNote(n.id, true);
   };
 
+  const closeFind = () => {
+    findBar.hidden = true;
+    findInput.value = "";
+    findCount.textContent = "";
+  };
+
+  const runFind = (dir: -1 | 0 | 1) => {
+    if (!editor || !currentId) return;
+    const q = findInput.value;
+    const { index, total } = editor.find(q, dir);
+    findCount.textContent = q.trim() ? (total ? `${index}/${total}` : "无匹配") : "";
+  };
+
+  const openFind = () => {
+    if (!currentId || !editor) {
+      search.focus();
+      return;
+    }
+    const sel = window.getSelection()?.toString().replace(/\s+/g, " ").trim() ?? "";
+    if (sel && sel.length <= 80) findInput.value = sel;
+    findBar.hidden = false;
+    findInput.focus();
+    findInput.select();
+    runFind(0);
+  };
+
+  const paintTrash = async () => {
+    const items = await store.trashList();
+    const sheet = el("div", { class: "sheet trash-sheet", role: "dialog", "aria-label": "回收站" });
+    const head = el("div", { class: "trash-head" }, el("h2", {}, "回收站"));
+    if (items.length) {
+      const emptyBtn = el("button", { class: "text-btn danger-text", type: "button" }, "清空");
+      emptyBtn.addEventListener("click", () => {
+        if (!window.confirm("彻底删除回收站里的全部笔记？此操作无法撤销。")) return;
+        void (async () => {
+          await store.emptyTrash();
+          await paintTrash();
+          paintHome();
+          showToast("回收站已清空");
+        })();
+      });
+      head.append(emptyBtn);
+    }
+    const list = el("div", { class: "trash-list" });
+    if (items.length === 0) {
+      list.append(el("p", { class: "lede" }, "回收站是空的。删除的笔记会先放在这里。"));
+    }
+    for (const item of items) {
+      const row = el("div", { class: "trash-item" });
+      row.append(
+        el("div", { class: "trash-meta" }, el("span", { class: "note-title" }, item.title || "未命名"), el("span", { class: "note-meta" }, `删除于 ${formatWhen(item.deletedAt)}`)),
+      );
+      const restoreBtn = el("button", { class: "text-btn", type: "button" }, "恢复");
+      const purgeBtn = el("button", { class: "text-btn danger-text", type: "button" }, "彻底删除");
+      restoreBtn.addEventListener("click", () => {
+        void (async () => {
+          const note = await store.restore(item.id);
+          await paintTrash();
+          paintList();
+          paintHome();
+          if (note) {
+            trashPop.hidden = true;
+            await openNote(note.id, true);
+            showToast("已恢复");
+          }
+        })();
+      });
+      purgeBtn.addEventListener("click", () => {
+        if (!window.confirm(`彻底删除「${item.title || "未命名"}」？此操作无法撤销。`)) return;
+        void (async () => {
+          await store.purge(item.id);
+          await paintTrash();
+          paintHome();
+          showToast("已彻底删除");
+        })();
+      });
+      row.append(el("div", { class: "trash-actions" }, restoreBtn, purgeBtn));
+      list.append(row);
+    }
+    sheet.append(head, list);
+    trashPop.replaceChildren(sheet);
+  };
+
+  const openTrash = () => {
+    const on = trashPop.hidden;
+    closeOverlays();
+    if (on) {
+      trashPop.hidden = false;
+      void paintTrash();
+    }
+  };
+
   const deleteNote = async (id: string) => {
+    persist(true);
     await store.remove(id);
+    showToast("已移到回收站");
+    closeFind();
     if (id === currentId || store.list().length === 0) {
       showHome();
       return;
@@ -540,6 +661,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     palette.hidden = true;
     helpPop.hidden = true;
     settingsPop.hidden = true;
+    trashPop.hidden = true;
     closeRowMenu();
   };
 
@@ -630,6 +752,16 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       closeMobileSidebar();
       openSettings();
     }
+    if (act === "trash") {
+      closeMobileSidebar();
+      openTrash();
+    }
+    if (act === "find-prev") runFind(-1);
+    if (act === "find-next") runFind(1);
+    if (act === "find-close") {
+      closeFind();
+      if (currentId) editor?.focus();
+    }
     if (act === "pick-dir") {
       void (async () => {
         const dir = await store.pickDir();
@@ -685,8 +817,23 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     editor?.applyChrome();
   });
 
+  findInput.addEventListener("input", () => runFind(0));
+  findInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runFind(e.shiftKey ? -1 : 1);
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeFind();
+      if (currentId) editor?.focus();
+    }
+  });
   helpPop.addEventListener("click", (e) => {
     if (e.target === helpPop) helpPop.hidden = true;
+  });
+  trashPop.addEventListener("click", (e) => {
+    if (e.target === trashPop) trashPop.hidden = true;
   });
   palette.addEventListener("click", (e) => {
     if (e.target === palette) palette.hidden = true;
@@ -698,6 +845,11 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      if (!findBar.hidden) {
+        closeFind();
+        if (currentId) editor?.focus();
+        return;
+      }
       closeOverlays();
       closeMobileSidebar();
       if (currentId) editor?.focus();
@@ -749,6 +901,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     } else if (code === "KeyF" && e.shiftKey) {
       e.preventDefault();
       store.setFocus(!store.meta().focus);
+    } else if (code === "KeyF") {
+      e.preventDefault();
+      openFind();
     } else if (!e.shiftKey && !inField && currentId && editor) {
       if (code === "KeyB") {
         e.preventDefault();
