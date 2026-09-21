@@ -483,6 +483,84 @@ html.resizing-sidebar * {
   flex-shrink: 0;
 }
 
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.tab-bar[hidden] {
+  display: none !important;
+}
+
+.topbar:has(.tab-bar:not([hidden])) .flex {
+  flex: 0 0 0;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 180px;
+  min-width: 72px;
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.tab:hover,
+.tab:focus-visible {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.tab-close {
+  flex-shrink: 0;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  padding: 0;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tab-close:hover,
+.tab-close:focus-visible {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.note-item.open:not(.active) {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 .flex {
   flex: 1;
 }
