@@ -555,6 +555,60 @@ func pickFolder(owner uintptr) (string, error) {
 	return windows.UTF16ToString(buf), nil
 }
 
+func moveNoteFile(rel, destDir string) (string, error) {
+	abs, err := absInRoot(rel)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("不能移动文件夹")
+	}
+	destDir = filepath.ToSlash(filepath.Clean(strings.TrimSpace(destDir)))
+	destDir = strings.Trim(destDir, "/")
+	if destDir == "." {
+		destDir = ""
+	}
+	lower := strings.ToLower(destDir)
+	if lower == trashDirName || strings.HasPrefix(lower, trashDirName+"/") {
+		return "", fmt.Errorf("不能移入回收站")
+	}
+	var destAbs string
+	if destDir == "" {
+		destAbs, err = ensureStorageDir()
+		if err != nil {
+			return "", err
+		}
+	} else {
+		destAbs, err = absInRoot(destDir)
+		if err != nil {
+			return "", err
+		}
+		st, statErr := os.Stat(destAbs)
+		if statErr != nil {
+			return "", statErr
+		}
+		if !st.IsDir() {
+			return "", fmt.Errorf("目标不是文件夹")
+		}
+	}
+	if filepath.Clean(filepath.Dir(abs)) == filepath.Clean(destAbs) {
+		return filepath.ToSlash(rel), nil
+	}
+	base := strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs))
+	name := uniqueMarkdownName(destAbs, base)
+	if err := moveFile(abs, filepath.Join(destAbs, name)); err != nil {
+		return "", err
+	}
+	if destDir == "" {
+		return name, nil
+	}
+	return filepath.ToSlash(filepath.Join(destDir, name)), nil
+}
+
 func bindDesktop(w webview2.WebView) error {
 	binds := []struct {
 		name string
@@ -587,6 +641,7 @@ func bindDesktop(w webview2.WebView) error {
 		{"flashRestore", func(id string) (string, error) { return restoreTrash(id) }},
 		{"flashPurge", func(id string) error { return purgeTrash(id) }},
 		{"flashEmptyTrash", func() error { return emptyTrash() }},
+		{"flashMove", func(rel, destDir string) (string, error) { return moveNoteFile(rel, destDir) }},
 	}
 	for _, b := range binds {
 		if err := w.Bind(b.name, b.fn); err != nil {

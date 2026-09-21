@@ -11,6 +11,12 @@ export const THEMES = [
 
 export type ThemeId = (typeof THEMES)[number]["id"];
 
+const DARK_THEMES = new Set<ThemeId>(["ink", "ocean", "contrast"]);
+
+export function isDarkTheme(id: ThemeId): boolean {
+  return DARK_THEMES.has(id);
+}
+
 export const LATIN_FONTS = [
   {
     id: "serif",
@@ -87,6 +93,9 @@ export type Meta = {
   latinFont: LatinFontId;
   cjkFont: CjkFontId;
   fontSize: number;
+  lastLight: ThemeId;
+  lastDark: ThemeId;
+  customOrder: boolean;
 };
 
 export type FileNode = {

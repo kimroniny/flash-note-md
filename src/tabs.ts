@@ -3,6 +3,7 @@ export type Tabs = {
   readonly active: string;
   open(id: string): void;
   close(id: string): string;
+  rename(from: string, to: string): void;
   deactivate(): void;
   has(id: string): boolean;
   cycle(dir: 1 | -1): string;
@@ -30,6 +31,13 @@ export function createTabs(): Tabs {
       ids.splice(i, 1);
       if (active === id) active = ids[i] ?? ids[i - 1] ?? "";
       return active;
+    },
+    rename(from: string, to: string) {
+      const i = ids.indexOf(from);
+      if (i === -1 || !to || from === to) return;
+      if (ids.includes(to)) ids.splice(i, 1);
+      else ids[i] = to;
+      if (active === from) active = to;
     },
     deactivate() {
       active = "";

@@ -12,6 +12,7 @@
       try {
         var meta = JSON.parse(localStorage.getItem("flashnote.v1.meta") || "{}");
         if (meta.theme) document.documentElement.setAttribute("data-theme", meta.theme);
+        else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.setAttribute("data-theme", "ink");
         if (meta.sidebar === false) document.documentElement.classList.add("sidebar-collapsed");
         if (meta.focus) document.documentElement.classList.add("focus-mode");
         if (meta.fontSize) document.documentElement.style.setProperty("--editor-size", meta.fontSize + "px");

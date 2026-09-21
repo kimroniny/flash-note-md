@@ -17,5 +17,6 @@ declare global {
     flashRestore?: (id: string) => Promise<string>;
     flashPurge?: (id: string) => Promise<void>;
     flashEmptyTrash?: () => Promise<void>;
+    flashMove?: (rel: string, destDir: string) => Promise<string>;
   }
 }
