@@ -309,7 +309,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => {
       toast.hidden = true;
-    }, 1200);
+    }, 2400);
   };
 
   const applyTheme = (id: ThemeId) => {
@@ -543,6 +543,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     findBar.hidden = true;
     findInput.value = "";
     findCount.textContent = "";
+    editor?.clearFind();
   };
 
   const runFind = (dir: -1 | 0 | 1) => {
@@ -550,6 +551,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     const q = findInput.value;
     const { index, total } = editor.find(q, dir);
     findCount.textContent = q.trim() ? (total ? `${index}/${total}` : "无匹配") : "";
+    findInput.focus();
   };
 
   const openFind = () => {
@@ -634,14 +636,13 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   const deleteNote = async (id: string) => {
     persist(true);
     await store.remove(id);
-    showToast("已移到回收站");
     closeFind();
-    if (id === currentId || store.list().length === 0) {
-      showHome();
-      return;
+    if (id === currentId || store.list().length === 0) showHome();
+    else {
+      paintList();
+      if (!currentId) paintHome();
     }
-    paintList();
-    if (!currentId) paintHome();
+    showToast("已移到回收站");
   };
 
   const cycleTheme = () => {
@@ -819,16 +820,22 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   findInput.addEventListener("input", () => runFind(0));
   findInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      runFind(e.shiftKey ? -1 : 1);
-    }
     if (e.key === "Escape") {
       e.preventDefault();
       closeFind();
       if (currentId) editor?.focus();
     }
   });
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (findBar.hidden || e.key !== "Enter" || e.isComposing) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      runFind(e.shiftKey ? -1 : 1);
+    },
+    true,
+  );
   helpPop.addEventListener("click", (e) => {
     if (e.target === helpPop) helpPop.hidden = true;
   });

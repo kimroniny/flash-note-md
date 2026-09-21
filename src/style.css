@@ -871,7 +871,7 @@ html.focus-mode .topbar:has(.find-bar:not([hidden])) {
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 12px;
-  z-index: 30;
+  z-index: 50;
 }
 
 .find-bar {
@@ -896,11 +896,9 @@ html.focus-mode .topbar:has(.find-bar:not([hidden])) {
   outline: none;
 }
 
-.find-count {
-  font-size: 12px;
-  color: var(--muted);
-  min-width: 4.5em;
-  white-space: nowrap;
+::highlight(fn-find) {
+  background: var(--mark);
+  color: inherit;
 }
 
 .overlay.trash .sheet,

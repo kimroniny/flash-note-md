@@ -10,6 +10,7 @@ export type EditorHandle = {
   selectAll(): void;
   format(cmd: FormatCmd): void;
   find(query: string, dir?: -1 | 0 | 1): { index: number; total: number };
+  clearFind(): void;
   applyChrome(): void;
   destroy(): void;
 };
@@ -276,6 +277,11 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       instance.setValue(md, true);
       findQuery = "";
       findIndex = -1;
+      try {
+        CSS.highlights?.delete("fn-find");
+      } catch {
+        /* ignore */
+      }
       if (focusEnd) instance.focus();
     },
     insert(text: string) {
@@ -307,9 +313,27 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     find(query: string, dir: -1 | 0 | 1 = 0) {
       const pre = host.querySelector(".vditor-ir pre") ?? host.querySelector("[contenteditable='true']");
       const needle = query.trim().toLowerCase();
+      const paint = (range: Range | null) => {
+        try {
+          CSS.highlights?.delete("fn-find");
+        } catch {
+          /* ignore */
+        }
+        if (!range) return;
+        try {
+          CSS.highlights?.set("fn-find", new Highlight(range));
+        } catch {
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+        const el = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+        el?.scrollIntoView({ block: "center", inline: "nearest" });
+      };
       if (!(pre instanceof HTMLElement) || !needle) {
         findQuery = "";
         findIndex = -1;
+        paint(null);
         return { index: 0, total: 0 };
       }
       const hits: { node: Text; start: number; end: number }[] = [];
@@ -336,6 +360,7 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       if (hits.length === 0) {
         findQuery = needle;
         findIndex = -1;
+        paint(null);
         return { index: 0, total: 0 };
       }
       let idx: number;
@@ -349,11 +374,17 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
       const range = document.createRange();
       range.setStart(hit.node, hit.start);
       range.setEnd(hit.node, hit.end);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-      hit.node.parentElement?.scrollIntoView({ block: "center", inline: "nearest" });
+      paint(range);
       return { index: idx + 1, total: hits.length };
+    },
+    clearFind() {
+      findQuery = "";
+      findIndex = -1;
+      try {
+        CSS.highlights?.delete("fn-find");
+      } catch {
+        /* ignore */
+      }
     },
     format,
     applyChrome() {
