@@ -2,6 +2,7 @@ import { CJK_FONTS, LATIN_FONTS, THEMES, type CjkFontId, type FileNode, type Lat
 import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
 import { nowStamp, titleFromMarkdown } from "./markdown.ts";
+import { createTabs } from "./tabs.ts";
 
 const SAVE_MS = 500;
 
@@ -124,10 +125,12 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     el("button", { class: "icon-btn", type: "button", "data-act": "find-next", title: "下一个" }, "↓"),
     el("button", { class: "icon-btn", type: "button", "data-act": "find-close", title: "关闭" }, "×"),
   );
+  const tabBar = el("div", { class: "tab-bar", role: "tablist", "aria-label": "打开的笔记", hidden: "" });
   const topbar = el(
     "header",
     { class: "topbar" },
     el("button", { class: "icon-btn", type: "button", "data-act": "sidebar", title: "目录 Ctrl+\\" }, "☰"),
+    tabBar,
     noteStamp,
     el("span", { class: "flex" }),
     findBar,
@@ -179,6 +182,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       <dl>
         <div><dt>Ctrl + N</dt><dd>新建空白笔记</dd></div>
         <div><dt>Ctrl + K</dt><dd>搜索 / 跳转笔记</dd></div>
+        <div><dt>Ctrl + W</dt><dd>关闭当前标签</dd></div>
+        <div><dt>Ctrl + Tab</dt><dd>下一个打开的笔记</dd></div>
         <div><dt>Ctrl + F</dt><dd>在当前笔记中查找</dd></div>
         <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
         <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
@@ -196,7 +201,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         <div><dt>Ctrl + S</dt><dd>立即保存</dd></div>
         <div><dt>Enter</dt><dd>下一段；列表中继续一条</dd></div>
       </dl>
-      <p class="hint">拖动左侧目录边缘可调整宽度。删除的笔记在回收站，可恢复。Ctrl+F 在当前笔记中查找。Tab / Shift+Tab 缩进列表。Ctrl+, 打开设置。</p>
+      <p class="hint">点目录里的笔记会在顶栏新开标签，可同时打开多篇。Ctrl+W 或点标签上的 × 关闭。拖动左侧目录边缘可调整宽度。删除的笔记在回收站，可恢复。Ctrl+F 在当前笔记中查找。Tab / Shift+Tab 缩进列表。Ctrl+, 打开设置。</p>
     </div>`;
 
   const settingsSheet = el("div", { class: "sheet settings-sheet", role: "dialog", "aria-label": "设置" });
@@ -298,6 +303,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   resizer.addEventListener("pointercancel", stopResize);
 
   let currentId = "";
+  const tabs = createTabs();
   let editor: EditorHandle | null = null;
   let saveTimer = 0;
   let searchQuery = "";
@@ -338,6 +344,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       if (noteStamp.textContent !== stamp) noteStamp.textContent = stamp;
       const nextDoc = `${title} · 闪记`;
       if (document.title !== nextDoc) document.title = nextDoc;
+      paintTabs();
     };
     window.clearTimeout(saveTimer);
     if (immediate) run();
@@ -356,7 +363,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       "button",
       {
         type: "button",
-        class: `note-item${id === currentId ? " active" : ""}`,
+        class: `note-item${id === currentId ? " active" : ""}${tabs.has(id) ? " open" : ""}`,
         "data-id": id,
         role: "listitem",
       },
@@ -406,6 +413,29 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     }
   };
 
+  const paintTabs = () => {
+    tabBar.replaceChildren();
+    tabBar.hidden = tabs.ids.length === 0;
+    for (const id of tabs.ids) {
+      const n = store.get(id);
+      const title = n?.title || "未命名";
+      const tab = el("div", {
+        class: `tab${id === currentId ? " active" : ""}`,
+        role: "tab",
+        "data-id": id,
+        "aria-selected": id === currentId ? "true" : "false",
+        title,
+      });
+      tab.append(
+        el("span", { class: "tab-title" }, n?.pinned ? `★ ${title}` : title),
+        el("button", { type: "button", class: "tab-close", "data-close-id": id, title: "关闭", "aria-label": `关闭 ${title}` }, "×"),
+      );
+      tabBar.append(tab);
+    }
+    const activeTab = tabBar.querySelector(".tab.active");
+    if (activeTab instanceof HTMLElement) activeTab.scrollIntoView({ inline: "nearest", block: "nearest" });
+  };
+
   const paintList = () => {
     const q = searchQuery.trim().toLowerCase();
     listEl.replaceChildren();
@@ -415,6 +445,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         listEl.append(el("div", { class: "empty-list" }, q ? "没有匹配的笔记" : "还没有笔记"));
       }
       paintStamp();
+      paintTabs();
       return;
     }
     const notes = store.list().filter((n) => {
@@ -424,6 +455,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (notes.length === 0) {
       listEl.append(el("div", { class: "empty-list" }, q ? "没有匹配的笔记" : "还没有笔记"));
       paintStamp();
+      paintTabs();
       return;
     }
     let lastGroup = "";
@@ -436,6 +468,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       appendFileRow(n.id, n.title, n.updatedAt, 0, n.pinned);
     }
     paintStamp();
+    paintTabs();
   };
 
   let rowMenu: HTMLElement | null = null;
@@ -506,6 +539,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   const showHome = () => {
     persist(true);
     currentId = "";
+    tabs.deactivate();
     closeFind();
     homeEl.hidden = false;
     editorRoot.hidden = true;
@@ -521,16 +555,38 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   };
 
   const openNote = async (id: string, focus = true) => {
+    if (currentId === id && !editorRoot.hidden) {
+      tabs.open(id);
+      paintTabs();
+      if (focus) editor?.focus();
+      return;
+    }
     persist(true);
     const n = (await store.load(id)) ?? store.get(id);
     if (!n) return;
+    tabs.open(id);
     currentId = id;
     store.touch(id);
+    closeFind();
     showEditor();
     editor?.setMarkdown(n.content, false);
     document.title = `${n.title} · 闪记`;
     paintList();
     if (focus) editor?.focus();
+  };
+
+  const closeTab = async (id: string) => {
+    if (!tabs.has(id)) return;
+    persist(true);
+    const wasCurrent = currentId === id;
+    const next = tabs.close(id);
+    if (!wasCurrent) {
+      paintList();
+      return;
+    }
+    closeFind();
+    if (next) await openNote(next, true);
+    else showHome();
   };
 
   const newMeeting = async () => {
@@ -636,9 +692,20 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   const deleteNote = async (id: string) => {
     persist(true);
     await store.remove(id);
-    closeFind();
-    if (id === currentId || store.list().length === 0) showHome();
-    else {
+    const wasCurrent = currentId === id;
+    const next = tabs.has(id) ? tabs.close(id) : tabs.active;
+    if (wasCurrent) currentId = "";
+    if (store.list().length === 0) {
+      for (const leftover of [...tabs.ids]) tabs.close(leftover);
+      closeFind();
+      showHome();
+    } else if (wasCurrent && next) {
+      closeFind();
+      await openNote(next, false);
+    } else if (wasCurrent) {
+      closeFind();
+      showHome();
+    } else {
       paintList();
       if (!currentId) paintHome();
     }
@@ -731,6 +798,38 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (id) void openNote(id);
   });
 
+  tabBar.addEventListener("click", (e) => {
+    const t = e.target as HTMLElement;
+    const closeId = t.closest("[data-close-id]")?.getAttribute("data-close-id");
+    if (closeId) {
+      e.preventDefault();
+      e.stopPropagation();
+      void closeTab(closeId);
+      return;
+    }
+    const id = t.closest("[data-id]")?.getAttribute("data-id");
+    if (id) void openNote(id);
+  });
+  tabBar.addEventListener("mousedown", (e) => {
+    if (e.button === 1) e.preventDefault();
+  });
+  tabBar.addEventListener("auxclick", (e) => {
+    if (e.button !== 1) return;
+    const id = (e.target as HTMLElement).closest("[data-id]")?.getAttribute("data-id");
+    if (!id) return;
+    e.preventDefault();
+    void closeTab(id);
+  });
+  tabBar.addEventListener(
+    "wheel",
+    (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      tabBar.scrollLeft += e.deltaY;
+      e.preventDefault();
+    },
+    { passive: false },
+  );
+
   search.addEventListener("input", () => {
     searchQuery = search.value;
     paintList();
@@ -768,11 +867,15 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         const dir = await store.pickDir();
         if (!dir) return;
         paintSettings();
-        const notes = store.list();
-        if (notes.length === 0) {
+        const keep = new Set(store.list().map((n) => n.id));
+        for (const id of [...tabs.ids]) {
+          if (!keep.has(id)) tabs.close(id);
+        }
+        if (!tabs.active) {
+          currentId = "";
           showHome();
-        } else if (!notes.some((n) => n.id === currentId)) {
-          showHome();
+        } else if (tabs.active !== currentId) {
+          await openNote(tabs.active, false);
         } else {
           paintList();
         }
@@ -877,6 +980,21 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (code === "KeyN") {
       e.preventDefault();
       void newMeeting();
+    } else if (code === "KeyW") {
+      e.preventDefault();
+      if (currentId) void closeTab(currentId);
+    } else if (code === "Tab" && tabs.ids.length) {
+      e.preventDefault();
+      const next = tabs.cycle(e.shiftKey ? -1 : 1);
+      if (next) void openNote(next);
+    } else if (code === "PageDown" && tabs.ids.length) {
+      e.preventDefault();
+      const next = tabs.cycle(1);
+      if (next) void openNote(next);
+    } else if (code === "PageUp" && tabs.ids.length) {
+      e.preventDefault();
+      const next = tabs.cycle(-1);
+      if (next) void openNote(next);
     } else if (code === "KeyA") {
       if (inField) return;
       if (!currentId) return;

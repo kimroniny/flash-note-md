@@ -54,7 +54,8 @@ Download **[FlashNote-Setup.exe](release/FlashNote-Setup.exe)** and run it. It i
 
 - Installs to `%LOCALAPPDATA%\Programs\FlashNote\`
 - Stores notes in `Documents\闪记` by default; choose a different folder in Settings
-- Organizes notes by folder in the sidebar; drag the sidebar edge to resize it
+- Organizes notes by folder in the sidebar; click a note to open it as a tab so several can stay open
+- Drag the sidebar edge to resize it
 - Uninstall: Windows Settings → Apps → 闪记
 
 Want to skip installation? Download the **[portable FlashNote.exe](release/FlashNote.exe)** instead.
@@ -74,6 +75,8 @@ Want to skip installation? Download the **[portable FlashNote.exe](release/Flash
 | --- | --- |
 | `Ctrl+N` | New meeting note |
 | `Ctrl+K` | Find and open a note |
+| `Ctrl+W` | Close the current tab |
+| `Ctrl+Tab` | Next open note |
 | `Ctrl+F` | Find in the current note |
 | `Ctrl+;` | Insert current time |
 | `Ctrl+S` | Save immediately |
