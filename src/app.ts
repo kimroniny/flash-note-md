@@ -1,4 +1,4 @@
-import { CJK_FONTS, LATIN_FONTS, THEMES, type CjkFontId, type FileNode, type LatinFontId, type ThemeId } from "./types.ts";
+import { CJK_FONTS, LATIN_FONTS, THEMES, isDarkTheme, type CjkFontId, type FileNode, type LatinFontId, type ThemeId } from "./types.ts";
 import { store } from "./store.ts";
 import { mountEditor, type EditorHandle } from "./editor.ts";
 import { nowStamp, titleFromMarkdown } from "./markdown.ts";
@@ -19,6 +19,67 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (tag === "button" && !node.hasAttribute("tabindex")) node.tabIndex = -1;
   node.append(...children);
   return node;
+}
+
+const ICONS: Record<string, string> = {
+  plus: `<path d="M12 5v14M5 12h14"/>`,
+  menu: `<path d="M4 7h16M4 12h16M4 17h16"/>`,
+  chevron: `<path d="M9 6l6 6-6 6"/>`,
+  up: `<path d="M6 14l6-6 6 6"/>`,
+  down: `<path d="M6 10l6 6 6-6"/>`,
+  close: `<path d="M6 6l12 12M18 6 6 18"/>`,
+  help: `<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.1 2.4c-.8.3-1.1 1-1.1 1.6V14"/><path d="M12 17.5h.01"/>`,
+  more: `<circle cx="5" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.25" fill="currentColor" stroke="none"/>`,
+  sun: `<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>`,
+  moon: `<path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z"/>`,
+  home: `<path d="M4 11.5 12 4l8 7.5"/><path d="M7 10.5V20h10v-9.5"/>`,
+};
+
+function icon(name: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.8");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.innerHTML = ICONS[name] ?? "";
+  return svg;
+}
+
+function highlight(text: string, q: string): (Node | string)[] {
+  const needle = q.trim();
+  if (!needle) return [text];
+  const lower = text.toLowerCase();
+  const query = needle.toLowerCase();
+  const out: (Node | string)[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const at = lower.indexOf(query, i);
+    if (at < 0) {
+      out.push(text.slice(i));
+      break;
+    }
+    if (at > i) out.push(text.slice(i, at));
+    out.push(el("mark", {}, text.slice(at, at + needle.length)));
+    i = at + needle.length;
+  }
+  return out;
+}
+
+function fillTitle(node: HTMLElement, title: string, pinned: boolean, q: string): void {
+  node.replaceChildren();
+  if (pinned) node.append("★ ");
+  node.append(...highlight(title, q));
+}
+
+function emptyState(query: boolean): HTMLElement {
+  const box = el("div", { class: "empty-list" });
+  if (query) box.append(el("p", {}, "没有匹配的笔记"));
+  else box.append(el("p", {}, "还没有笔记"), el("p", { class: "empty-hint" }, "按 Ctrl+N 新建第一篇"));
+  return box;
 }
 
 function formatWhen(ts: number): string {
@@ -89,6 +150,16 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     "aria-label": "关闭目录",
   });
 
+  const searchCount = el("span", { class: "search-count", hidden: "" });
+  const searchClear = el(
+    "button",
+    { class: "icon-btn search-clear", type: "button", "data-act": "search-clear", title: "清除搜索", hidden: "" },
+    icon("close"),
+  );
+  const searchWrap = el("div", { class: "search-wrap" }, search, searchCount, searchClear);
+  const saveDot = el("span", { class: "save-dot", hidden: "", title: "已保存" });
+  const themeBtn = el("button", { class: "icon-btn", type: "button", "data-act": "theme-toggle", title: "切换浅色或深色" }, icon("moon"));
+
   const sidebar = el(
     "aside",
     { class: "sidebar" },
@@ -96,9 +167,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       "div",
       { class: "sidebar-head" },
       el("button", { class: "brand", type: "button", "data-act": "home", title: "最近笔记" }, el("span", { class: "mark", "aria-hidden": "true" }), "闪记"),
-      el("button", { class: "icon-btn", type: "button", "data-act": "new", title: "新建笔记 Ctrl+N" }, "+"),
+      el("button", { class: "icon-btn", type: "button", "data-act": "new", title: "新建笔记 Ctrl+N" }, icon("plus")),
     ),
-    search,
+    searchWrap,
     listEl,
     el(
       "div",
@@ -121,20 +192,22 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   findBar.append(
     findInput,
     findCount,
-    el("button", { class: "icon-btn", type: "button", "data-act": "find-prev", title: "上一个" }, "↑"),
-    el("button", { class: "icon-btn", type: "button", "data-act": "find-next", title: "下一个" }, "↓"),
-    el("button", { class: "icon-btn", type: "button", "data-act": "find-close", title: "关闭" }, "×"),
+    el("button", { class: "icon-btn", type: "button", "data-act": "find-prev", title: "上一个" }, icon("up")),
+    el("button", { class: "icon-btn", type: "button", "data-act": "find-next", title: "下一个" }, icon("down")),
+    el("button", { class: "icon-btn", type: "button", "data-act": "find-close", title: "关闭" }, icon("close")),
   );
   const tabBar = el("div", { class: "tab-bar", role: "tablist", "aria-label": "打开的笔记", hidden: "" });
   const topbar = el(
     "header",
     { class: "topbar" },
-    el("button", { class: "icon-btn", type: "button", "data-act": "sidebar", title: "目录 Ctrl+\\" }, "☰"),
+    el("button", { class: "icon-btn", type: "button", "data-act": "sidebar", title: "目录 Ctrl+\\" }, icon("menu")),
+    el("button", { class: "icon-btn home-back", type: "button", "data-act": "home", title: "最近笔记" }, icon("home")),
     tabBar,
-    noteStamp,
+    el("span", { class: "stamp-wrap" }, noteStamp, saveDot),
     el("span", { class: "flex" }),
     findBar,
-    el("button", { class: "text-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, "?"),
+    themeBtn,
+    el("button", { class: "icon-btn", type: "button", "data-act": "help", title: "快捷键 ?" }, icon("help")),
   );
 
   const trashPop = el("div", { class: "overlay trash", hidden: "" });
@@ -180,28 +253,28 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       <h2>打开先看最近</h2>
       <p>启动后中间是最近笔记。点一篇再写；点 + 或 Ctrl+N 新建空白笔记，标题自己打。</p>
       <dl>
-        <div><dt>Ctrl + N</dt><dd>新建空白笔记</dd></div>
-        <div><dt>Ctrl + K</dt><dd>搜索 / 跳转笔记</dd></div>
-        <div><dt>Ctrl + W</dt><dd>关闭当前标签</dd></div>
-        <div><dt>Ctrl + Tab</dt><dd>下一个打开的笔记</dd></div>
-        <div><dt>Ctrl + F</dt><dd>在当前笔记中查找</dd></div>
-        <div><dt>Ctrl + \\</dt><dd>显示或隐藏目录</dd></div>
-        <div><dt>Ctrl + A</dt><dd>全选当前笔记</dd></div>
-        <div><dt>Ctrl + B</dt><dd>粗体</dd></div>
-        <div><dt>Ctrl + I</dt><dd>斜体</dd></div>
-        <div><dt>Ctrl + U</dt><dd>下划线</dd></div>
-        <div><dt>Ctrl + 1 … 6</dt><dd>一级到六级标题</dd></div>
-        <div><dt>Tab</dt><dd>列表缩进</dd></div>
-        <div><dt>Shift + Tab</dt><dd>取消缩进</dd></div>
-        <div><dt>Ctrl + ,</dt><dd>设置</dd></div>
-        <div><dt>Ctrl + Shift + F</dt><dd>专注模式</dd></div>
-        <div><dt>Ctrl + Shift + T</dt><dd>下一主题</dd></div>
-        <div><dt>Ctrl + ;</dt><dd>插入当前时间</dd></div>
-        <div><dt>Ctrl + E</dt><dd>导出 Markdown</dd></div>
-        <div><dt>Ctrl + S</dt><dd>立即保存</dd></div>
-        <div><dt>Enter</dt><dd>下一段；列表中继续一条</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>N</kbd></dt><dd>新建空白笔记</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>K</kbd></dt><dd>搜索 / 跳转笔记</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>W</kbd></dt><dd>关闭当前标签</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>Tab</kbd></dt><dd>下一个打开的笔记</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>F</kbd></dt><dd>在当前笔记中查找</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>\\</kbd></dt><dd>显示或隐藏目录</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>A</kbd></dt><dd>全选当前笔记</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>B</kbd></dt><dd>粗体</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>I</kbd></dt><dd>斜体</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>U</kbd></dt><dd>下划线</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>1</kbd><kbd>…</kbd><kbd>6</kbd></dt><dd>一级到六级标题</dd></div>
+        <div><dt><kbd>Tab</kbd></dt><dd>列表缩进</dd></div>
+        <div><dt><kbd>Shift</kbd><kbd>Tab</kbd></dt><dd>取消缩进</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>,</kbd></dt><dd>设置</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd></dt><dd>专注模式</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></dt><dd>下一主题</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>;</kbd></dt><dd>插入当前时间</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>E</kbd></dt><dd>导出 Markdown</dd></div>
+        <div><dt><kbd>Ctrl</kbd><kbd>S</kbd></dt><dd>立即保存</dd></div>
+        <div><dt><kbd>Enter</kbd></dt><dd>下一段；列表中继续一条</dd></div>
       </dl>
-      <p class="hint">点目录里的笔记会在顶栏新开标签，可同时打开多篇。Ctrl+W 或点标签上的 × 关闭。拖动左侧目录边缘可调整宽度。删除的笔记在回收站，可恢复。Ctrl+F 在当前笔记中查找。Tab / Shift+Tab 缩进列表。Ctrl+, 打开设置。</p>
+      <p class="hint">点目录里的笔记会在顶栏新开标签。顶栏按钮可在记住的浅色和深色主题之间切换。拖动目录边缘调整宽度。浏览器里可拖动笔记排序；安装版可把笔记拖进文件夹。删除后可在提示里撤销。</p>
     </div>`;
 
   const settingsSheet = el("div", { class: "sheet settings-sheet", role: "dialog", "aria-label": "设置" });
@@ -309,34 +382,65 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   let searchQuery = "";
   let toastTimer = 0;
 
-  const showToast = (text: string) => {
-    toast.textContent = text;
+  const showToast = (text: string, opts?: { tone?: "danger"; undo?: () => void }) => {
+    toast.className = opts?.tone === "danger" ? "toast danger" : "toast";
+    toast.replaceChildren(document.createTextNode(text));
+    if (opts?.undo) {
+      const undo = el("button", { type: "button", class: "toast-undo" }, "撤销");
+      undo.addEventListener("click", () => {
+        toast.hidden = true;
+        window.clearTimeout(toastTimer);
+        opts.undo?.();
+      });
+      toast.append(undo);
+    }
     toast.hidden = false;
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => {
       toast.hidden = true;
-    }, 2400);
+    }, opts?.undo ? 5000 : 2400);
+  };
+
+  const paintThemeBtn = () => {
+    const dark = isDarkTheme(store.meta().theme);
+    themeBtn.replaceChildren(icon(dark ? "sun" : "moon"));
+    themeBtn.title = dark ? "切换到浅色" : "切换到深色";
   };
 
   const applyTheme = (id: ThemeId) => {
     store.setTheme(id);
     paintSettings();
+    paintThemeBtn();
     editor?.applyChrome();
+  };
+
+  const setSaveState = (state: "saved" | "dirty") => {
+    if (!currentId) {
+      saveDot.hidden = true;
+      return;
+    }
+    saveDot.hidden = false;
+    saveDot.dataset.state = state;
+    saveDot.title = state === "dirty" ? "未保存" : "已保存";
   };
 
   const persist = (immediate = false) => {
     if (!currentId || !editor) return;
+    setSaveState("dirty");
     const run = () => {
       const content = editor!.getMarkdown();
       const title = titleFromMarkdown(content);
       const n = store.save(currentId, { content, title });
-      if (!n) return;
+      if (!n) {
+        setSaveState("saved");
+        return;
+      }
       const row = listEl.querySelector(`.note-item[data-id="${CSS.escape(currentId)}"]`);
       if (row) {
         const t = row.querySelector(".note-title");
         const m = row.querySelector(".note-meta");
-        const nextTitle = n.pinned ? `★ ${title}` : title;
-        if (t && t.textContent !== nextTitle) t.textContent = nextTitle;
+        const plain = n.pinned ? `★ ${title}` : title;
+        if (t instanceof HTMLElement && t.textContent !== plain) fillTitle(t, title, n.pinned, searchQuery);
         const when = formatWhen(n.updatedAt);
         if (m && m.textContent !== when) m.textContent = when;
       }
@@ -344,6 +448,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       if (noteStamp.textContent !== stamp) noteStamp.textContent = stamp;
       const nextDoc = `${title} · 闪记`;
       if (document.title !== nextDoc) document.title = nextDoc;
+      setSaveState("saved");
       paintTabs();
     };
     window.clearTimeout(saveTimer);
@@ -357,8 +462,64 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   };
 
   const collapsed = new Set<string>();
+  let suppressClick = false;
 
-  const appendFileRow = (id: string, title: string, updatedAt: number, depth: number, pinned: boolean) => {
+  const beginDrag = (event: DragEvent, id: string) => {
+    if (searchQuery.trim()) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer?.setData("text/plain", id);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    document.documentElement.classList.add("is-dragging");
+  };
+
+  const endDrag = () => {
+    document.documentElement.classList.remove("is-dragging");
+    listEl.querySelectorAll(".drop-target").forEach((node) => node.classList.remove("drop-target"));
+    suppressClick = true;
+    window.setTimeout(() => {
+      suppressClick = false;
+    }, 50);
+  };
+
+  const relocateNote = (from: string, to: string) => {
+    if (from !== to && tabs.has(from)) tabs.rename(from, to);
+    if (currentId === from) {
+      currentId = to;
+      store.touch(to);
+    }
+    paintList();
+  };
+
+  const bindFolderDrop = (row: HTMLElement, destDir: string) => {
+    row.addEventListener("dragover", (e) => {
+      if (!store.isDesktop() || searchQuery.trim()) return;
+      e.preventDefault();
+      row.classList.add("drop-target");
+    });
+    row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove("drop-target");
+      const from = e.dataTransfer?.getData("text/plain") ?? "";
+      if (!from || !store.isDesktop()) return;
+      void (async () => {
+        const next = await store.move(from, destDir);
+        if (!next) {
+          showToast("无法移动");
+          return;
+        }
+        relocateNote(from, next);
+        showToast(destDir ? "已移入文件夹" : "已移到根目录");
+      })();
+    });
+  };
+
+  const appendFileRow = (id: string, title: string, updatedAt: number, depth: number, pinned: boolean, q: string) => {
+    const titleEl = el("span", { class: "note-title" });
+    fillTitle(titleEl, title, pinned, q);
     const item = el(
       "button",
       {
@@ -366,8 +527,9 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         class: `note-item${id === currentId ? " active" : ""}${tabs.has(id) ? " open" : ""}`,
         "data-id": id,
         role: "listitem",
+        draggable: searchQuery.trim() ? "false" : "true",
       },
-      el("span", { class: "note-title" }, pinned ? `★ ${title}` : title),
+      titleEl,
       el("span", { class: "note-meta" }, formatWhen(updatedAt)),
     );
     item.style.setProperty("--depth", String(depth));
@@ -375,7 +537,33 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       e.preventDefault();
       openRowMenu(id, item);
     });
-    listEl.append(item);
+    item.addEventListener("dragstart", (e) => beginDrag(e, id));
+    item.addEventListener("dragend", endDrag);
+    if (!store.isDesktop()) {
+      item.addEventListener("dragover", (e) => {
+        if (searchQuery.trim()) return;
+        e.preventDefault();
+        item.classList.add("drop-target");
+      });
+      item.addEventListener("dragleave", () => item.classList.remove("drop-target"));
+      item.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        item.classList.remove("drop-target");
+        const from = e.dataTransfer?.getData("text/plain") ?? "";
+        if (!from || from === id) return;
+        store.reorder(from, id);
+        paintList();
+      });
+    }
+    const more = el(
+      "button",
+      { type: "button", class: "icon-btn note-more", "data-act": "row-menu", "data-id": id, title: "更多", "aria-label": "更多操作" },
+      icon("more"),
+    );
+    const row = el("div", { class: "note-row" });
+    row.append(item, more);
+    listEl.append(row);
   };
 
   const paintTree = (nodes: FileNode[], depth: number, q: string) => {
@@ -386,19 +574,20 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         const hasHit = matchSelf || JSON.stringify(kids).toLowerCase().includes(q);
         if (q && !hasHit) continue;
         const folded = collapsed.has(node.path) && !q;
-        const row = el(
-          "button",
-          { type: "button", class: "tree-folder", "data-folder": node.path },
-          `${folded ? "▸" : "▾"} ${node.name}`,
-        );
+        const row = el("button", { type: "button", class: "tree-folder", "data-folder": node.path });
+        const chev = icon("chevron");
+        if (!folded) chev.classList.add("open");
+        row.append(chev, ...highlight(node.name, q));
         row.style.setProperty("--depth", String(depth));
         row.addEventListener("click", (e) => {
+          if (suppressClick) return;
           e.preventDefault();
           e.stopPropagation();
           if (collapsed.has(node.path)) collapsed.delete(node.path);
           else collapsed.add(node.path);
           paintList();
         });
+        bindFolderDrop(row, node.path);
         listEl.append(row);
         if (!folded) paintTree(kids, depth + 1, q);
         continue;
@@ -409,7 +598,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         if (!hay.includes(q)) continue;
       }
       const n = store.get(node.path);
-      appendFileRow(node.path, n?.title || node.title, n?.updatedAt || node.updatedAt, depth, n?.pinned === true);
+      appendFileRow(node.path, n?.title || node.title, n?.updatedAt || node.updatedAt, depth, n?.pinned === true, q);
     }
   };
 
@@ -428,7 +617,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       });
       tab.append(
         el("span", { class: "tab-title" }, n?.pinned ? `★ ${title}` : title),
-        el("button", { type: "button", class: "tab-close", "data-close-id": id, title: "关闭", "aria-label": `关闭 ${title}` }, "×"),
+        el("button", { type: "button", class: "tab-close", "data-close-id": id, title: "关闭", "aria-label": `关闭 ${title}` }, icon("close")),
       );
       tabBar.append(tab);
     }
@@ -436,37 +625,64 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     if (activeTab instanceof HTMLElement) activeTab.scrollIntoView({ inline: "nearest", block: "nearest" });
   };
 
+  const syncSearchChrome = () => {
+    const q = searchQuery.trim();
+    const matched = listEl.querySelectorAll(".note-item").length;
+    searchClear.hidden = search.value.length === 0;
+    searchCount.hidden = q.length === 0;
+    searchCount.textContent = q ? String(matched) : "";
+  };
+
   const paintList = () => {
     const q = searchQuery.trim().toLowerCase();
     listEl.replaceChildren();
     if (store.isDesktop()) {
+      const rootDrop = el("div", { class: "tree-folder drop-root" }, "放到根目录");
+      bindFolderDrop(rootDrop, "");
+      listEl.append(rootDrop);
       paintTree(store.tree(), 0, q);
-      if (listEl.childElementCount === 0) {
-        listEl.append(el("div", { class: "empty-list" }, q ? "没有匹配的笔记" : "还没有笔记"));
+      if (listEl.querySelectorAll(".note-item, .tree-folder:not(.drop-root)").length === 0) {
+        listEl.append(emptyState(Boolean(q)));
       }
+      syncSearchChrome();
       paintStamp();
       paintTabs();
       return;
+    }
+    if (store.meta().customOrder && !q) {
+      listEl.append(
+        el(
+          "div",
+          { class: "order-bar" },
+          "自定义顺序",
+          el("button", { class: "text-btn", type: "button", "data-act": "reset-order" }, "按时间"),
+        ),
+      );
     }
     const notes = store.list().filter((n) => {
       if (!q) return true;
       return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
     });
     if (notes.length === 0) {
-      listEl.append(el("div", { class: "empty-list" }, q ? "没有匹配的笔记" : "还没有笔记"));
+      listEl.append(emptyState(Boolean(q)));
+      syncSearchChrome();
       paintStamp();
       paintTabs();
       return;
     }
     let lastGroup = "";
+    const grouped = !store.meta().customOrder;
     for (const n of notes) {
-      const g = groupLabel(n.updatedAt);
-      if (g !== lastGroup) {
-        lastGroup = g;
-        listEl.append(el("div", { class: "group" }, g));
+      if (grouped) {
+        const g = groupLabel(n.updatedAt);
+        if (g !== lastGroup) {
+          lastGroup = g;
+          listEl.append(el("div", { class: "group" }, g));
+        }
       }
-      appendFileRow(n.id, n.title, n.updatedAt, 0, n.pinned);
+      appendFileRow(n.id, n.title, n.updatedAt, 0, n.pinned, q);
     }
+    syncSearchChrome();
     paintStamp();
     paintTabs();
   };
@@ -504,6 +720,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       closeRowMenu();
       void deleteNote(id);
     };
+    menu.dataset.for = id;
     menu.append(pin, dup, del);
     const r = anchor.getBoundingClientRect();
     menu.style.top = `${r.bottom + 4}px`;
@@ -513,7 +730,14 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   };
 
   const paintHome = () => {
-    const notes = store.list().slice(0, 16);
+    const notes = store
+      .list()
+      .slice()
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      })
+      .slice(0, 16);
     const head = el("div", { class: "home-head" });
     head.append(el("h1", {}, "最近"));
     const trashLink = el("button", { class: "text-btn home-trash", type: "button", "data-act": "trash" }, "回收站");
@@ -545,6 +769,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     editorRoot.hidden = true;
     document.title = "闪记";
     noteStamp.textContent = "";
+    saveDot.hidden = true;
     paintHome();
     paintList();
   };
@@ -567,6 +792,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
     tabs.open(id);
     currentId = id;
     store.touch(id);
+    setSaveState("saved");
     closeFind();
     showEditor();
     editor?.setMarkdown(n.content, false);
@@ -635,7 +861,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
           await store.emptyTrash();
           await paintTrash();
           paintHome();
-          showToast("回收站已清空");
+          showToast("回收站已清空", { tone: "danger" });
         })();
       });
       head.append(emptyBtn);
@@ -670,7 +896,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
           await store.purge(item.id);
           await paintTrash();
           paintHome();
-          showToast("已彻底删除");
+          showToast("已彻底删除", { tone: "danger" });
         })();
       });
       row.append(el("div", { class: "trash-actions" }, restoreBtn, purgeBtn));
@@ -691,8 +917,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
 
   const deleteNote = async (id: string) => {
     persist(true);
-    await store.remove(id);
     const wasCurrent = currentId === id;
+    const trashId = await store.remove(id);
     const next = tabs.has(id) ? tabs.close(id) : tabs.active;
     if (wasCurrent) currentId = "";
     if (store.list().length === 0) {
@@ -709,7 +935,24 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       paintList();
       if (!currentId) paintHome();
     }
-    showToast("已移到回收站");
+    if (!trashId) {
+      showToast("已移到回收站");
+      return;
+    }
+    showToast("已移到回收站", {
+      undo: () => {
+        void (async () => {
+          const note = await store.restore(trashId);
+          if (!note) return;
+          if (wasCurrent) await openNote(note.id, true);
+          else {
+            paintList();
+            if (!currentId) paintHome();
+          }
+          showToast("已恢复");
+        })();
+      },
+    });
   };
 
   const cycleTheme = () => {
@@ -747,7 +990,8 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       const notes = store.list().filter((n) => !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
       results.replaceChildren();
       notes.slice(0, 20).forEach((n, i) => {
-        const item = el("button", { type: "button", class: `palette-item${i === 0 ? " active" : ""}`, "data-id": n.id }, n.title);
+        const item = el("button", { type: "button", class: `palette-item${i === 0 ? " active" : ""}`, "data-id": n.id });
+        item.append(...highlight(n.title, input.value));
         results.append(item);
       });
     };
@@ -787,7 +1031,19 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   showHome();
 
   listEl.addEventListener("click", (e) => {
-    const id = (e.target as HTMLElement).closest("[data-id]")?.getAttribute("data-id");
+    if (suppressClick) return;
+    const target = e.target as HTMLElement;
+    const more = target.closest("[data-act='row-menu']");
+    if (more) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = more.getAttribute("data-id");
+      if (!id) return;
+      if (rowMenu?.dataset.for === id) closeRowMenu();
+      else openRowMenu(id, more as HTMLElement);
+      return;
+    }
+    const id = target.closest("[data-id]")?.getAttribute("data-id");
     if (id) {
       openNote(id);
       closeMobileSidebar();
@@ -896,6 +1152,20 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
       closeOverlays();
       helpPop.hidden = !on;
     }
+    if (act === "theme-toggle") {
+      const m = store.meta();
+      applyTheme(isDarkTheme(m.theme) ? m.lastLight : m.lastDark);
+    }
+    if (act === "search-clear") {
+      search.value = "";
+      searchQuery = "";
+      paintList();
+      search.focus();
+    }
+    if (act === "reset-order") {
+      store.clearCustomOrder();
+      paintList();
+    }
   });
 
   settingsPop.addEventListener("click", (e) => {
@@ -950,7 +1220,11 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   });
 
   document.addEventListener("click", (e) => {
-    if (rowMenu && !rowMenu.contains(e.target as Node)) closeRowMenu();
+    if (!rowMenu) return;
+    const target = e.target as HTMLElement;
+    if (rowMenu.contains(target)) return;
+    if (target.closest("[data-act='row-menu']")) return;
+    closeRowMenu();
   });
 
   window.addEventListener("keydown", (e) => {

@@ -109,6 +109,19 @@ describe("createTabs", () => {
     assert.equal(tabs.cycle(1), "a");
   });
 
+  it("renames an open tab without activating a background note", () => {
+    const tabs = createTabs();
+    tabs.open("a");
+    tabs.open("b");
+    tabs.open("a");
+    tabs.rename("b", "b2");
+    assert.deepEqual([...tabs.ids], ["a", "b2"]);
+    assert.equal(tabs.active, "a");
+    tabs.rename("a", "a2");
+    assert.equal(tabs.active, "a2");
+    assert.deepEqual([...tabs.ids], ["a2", "b2"]);
+  });
+
   it("activates the last tab when cycling backward from home", () => {
     const tabs = createTabs();
     tabs.open("a");

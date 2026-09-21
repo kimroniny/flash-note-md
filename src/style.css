@@ -378,6 +378,11 @@ html.resizing-sidebar * {
   padding: 8px 58px 8px 10px;
 }
 
+.search::-webkit-search-cancel-button,
+.search::-webkit-search-decoration {
+  display: none;
+}
+
 .search-count {
   position: absolute;
   right: 32px;
@@ -414,6 +419,8 @@ html.resizing-sidebar * {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 8px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
 }
 
 .sidebar-foot {
@@ -830,6 +837,11 @@ html.focus-mode .main:has(.topbar:focus-within)::before {
 .tab-close:hover,
 .tab-close:focus-visible {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.tab-close .icon {
+  width: 12px;
+  height: 12px;
 }
 
 .note-item.open:not(.active) {

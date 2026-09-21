@@ -3,6 +3,7 @@ import {
   LATIN_FONTS,
   THEMES,
   composeEditorFont,
+  isDarkTheme,
   type CjkFontId,
   type FileNode,
   type LatinFontId,
@@ -33,17 +34,29 @@ function clampFontSize(px: number): number {
   return Math.round(Math.min(26, Math.max(14, px)));
 }
 
+function prefersDark(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function isTheme(id: unknown): id is ThemeId {
+  return typeof id === "string" && THEMES.some((t) => t.id === id);
+}
+
 function defaultMeta(): Meta {
+  const theme: ThemeId = prefersDark() ? "ink" : "paper";
   return {
     ids: [],
     lastId: null,
-    theme: "paper",
+    theme,
     sidebar: true,
     focus: false,
     sidebarWidth: 268,
     latinFont: "serif",
     cjkFont: "kai",
     fontSize: 18,
+    lastLight: "paper",
+    lastDark: "ink",
+    customOrder: false,
   };
 }
 
@@ -53,8 +66,10 @@ function readMeta(): Meta {
     if (!raw) return defaultMeta();
     const parsed = JSON.parse(raw) as Partial<Meta> & { font?: string };
     const ids = Array.isArray(parsed.ids) ? parsed.ids.filter((x) => typeof x === "string") : [];
-    const theme = THEMES.some((t) => t.id === parsed.theme) ? (parsed.theme as ThemeId) : "paper";
+    const theme = isTheme(parsed.theme) ? parsed.theme : parsed.theme == null ? (prefersDark() ? "ink" : "paper") : "paper";
     const migrated = migrateFonts(parsed);
+    const lastLight = isTheme(parsed.lastLight) && !isDarkTheme(parsed.lastLight) ? parsed.lastLight : isDarkTheme(theme) ? "paper" : theme;
+    const lastDark = isTheme(parsed.lastDark) && isDarkTheme(parsed.lastDark) ? parsed.lastDark : isDarkTheme(theme) ? theme : "ink";
     return {
       ids,
       lastId: typeof parsed.lastId === "string" ? parsed.lastId : null,
@@ -65,6 +80,9 @@ function readMeta(): Meta {
       latinFont: migrated.latinFont,
       cjkFont: migrated.cjkFont,
       fontSize: clampFontSize(typeof parsed.fontSize === "number" ? parsed.fontSize : 18),
+      lastLight,
+      lastDark,
+      customOrder: parsed.customOrder === true,
     };
   } catch {
     return defaultMeta();
@@ -233,7 +251,9 @@ export const store = {
   },
 
   setTheme(theme: ThemeId): void {
-    meta = { ...meta, theme };
+    const lastLight = isDarkTheme(theme) ? meta.lastLight : theme;
+    const lastDark = isDarkTheme(theme) ? theme : meta.lastDark;
+    meta = { ...meta, theme, lastLight, lastDark };
     writeMeta(meta);
     document.documentElement.setAttribute("data-theme", theme);
   },
@@ -287,10 +307,57 @@ export const store = {
       meta = { ...meta, ids: notes.map((n) => n.id) };
       writeMeta(meta);
     }
+    const index = new Map(meta.ids.map((id, i) => [id, i]));
     return notes.sort((a, b) => {
+      if (meta.customOrder) {
+        const ia = index.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+        const ib = index.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+        if (ia !== ib) return ia - ib;
+      }
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return b.updatedAt - a.updatedAt;
     });
+  },
+
+  reorder(dragId: string, beforeId: string): void {
+    if (desktop || !dragId || dragId === beforeId) return;
+    const current = this.list().map((n) => n.id);
+    if (!current.includes(dragId)) return;
+    const next = current.filter((id) => id !== dragId);
+    const at = next.indexOf(beforeId);
+    if (at < 0) next.push(dragId);
+    else next.splice(at, 0, dragId);
+    meta = { ...meta, ids: next, customOrder: true };
+    writeMeta(meta);
+  },
+
+  clearCustomOrder(): void {
+    if (!meta.customOrder) return;
+    meta = { ...meta, customOrder: false };
+    writeMeta(meta);
+  },
+
+  async move(id: string, destDir: string): Promise<string | null> {
+    if (!desktop || !window.flashMove) return null;
+    const prev = (await this.load(id)) ?? this.get(id);
+    let nextId = "";
+    try {
+      nextId = await window.flashMove(id, destDir);
+    } catch {
+      return null;
+    }
+    if (!nextId) return null;
+    noteCache.delete(id);
+    await this.refresh();
+    if (prev) {
+      const listed = this.get(nextId);
+      noteCache.set(nextId, { ...(listed ?? prev), id: nextId, content: prev.content, pinned: prev.pinned, title: prev.title });
+    }
+    if (meta.lastId === id) {
+      meta = { ...meta, lastId: nextId };
+      writeMeta(meta);
+    }
+    return nextId;
   },
 
   get(id: string): Note | null {
@@ -383,9 +450,9 @@ export const store = {
     writeMeta(meta);
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<string | null> {
     const note = (await this.load(id)) ?? this.get(id);
-    if (!note) return;
+    if (!note) return null;
     if (desktop && window.flashTrash) {
       await window.flashTrash(id);
       noteCache.delete(id);
@@ -394,7 +461,8 @@ export const store = {
         meta = { ...meta, lastId: this.list()[0]?.id ?? null };
         writeMeta(meta);
       }
-      return;
+      const items = await this.trashList();
+      return items.find((t) => t.noteId === id)?.id ?? items[0]?.id ?? null;
     }
     if (desktop) {
       await window.flashDelete?.(id);
@@ -404,7 +472,7 @@ export const store = {
         meta = { ...meta, lastId: this.list()[0]?.id ?? null };
         writeMeta(meta);
       }
-      return;
+      return null;
     }
     const item: TrashItem = {
       id: uid(),
@@ -421,6 +489,7 @@ export const store = {
     const ids = meta.ids.filter((x) => x !== id);
     meta = { ...meta, ids, lastId: meta.lastId === id ? (ids[0] ?? null) : meta.lastId };
     writeMeta(meta);
+    return item.id;
   },
 
   async trashList(): Promise<TrashItem[]> {
