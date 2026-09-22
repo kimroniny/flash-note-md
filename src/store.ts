@@ -12,6 +12,17 @@ import {
   type ThemeId,
   type TrashItem,
 } from "./types.ts";
+import {
+  BROWSER_IMAGE_MAX,
+  DESKTOP_IMAGE_MAX,
+  extForImage,
+  imageFileName,
+  imageSrcInNote,
+  imageStamp,
+  imageWritePath,
+  localImagePaths,
+  noteDir,
+} from "./images.ts";
 
 const META_KEY = "flashnote.v1.meta";
 const TRASH_KEY = "flashnote.v1.trash";
@@ -183,6 +194,51 @@ function migrateFonts(parsed: Partial<Meta> & { font?: string }): { latinFont: L
       return { latinFont: "mono", cjkFont: "hei" };
     default:
       return { latinFont: "serif", cjkFont: "kai" };
+  }
+}
+
+async function readAsDataURL(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("读取图片失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunk = 0x8000;
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+async function compressForBrowser(file: File): Promise<string> {
+  if (file.size <= 400 * 1024 && file.type !== "image/png") {
+    return readAsDataURL(file);
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height, 1));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return readAsDataURL(file);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    let quality = 0.82;
+    let url = canvas.toDataURL("image/jpeg", quality);
+    while (url.length > BROWSER_IMAGE_MAX * 1.37 && quality > 0.4) {
+      quality -= 0.12;
+      url = canvas.toDataURL("image/jpeg", quality);
+    }
+    return url;
+  } catch {
+    const url = await readAsDataURL(file);
+    if (url.length > BROWSER_IMAGE_MAX * 1.37) throw new Error("图片太大");
+    return url;
   }
 }
 
@@ -465,6 +521,12 @@ export const store = {
       return items.find((t) => t.noteId === id)?.id ?? items[0]?.id ?? null;
     }
     if (desktop) {
+      const dir = noteDir(id);
+      for (const src of localImagePaths(note.content)) {
+        const rel = dir ? `${dir}/${src}` : src;
+        if (!rel || rel.includes("..")) continue;
+        await window.flashDelete?.(rel);
+      }
       await window.flashDelete?.(id);
       noteCache.delete(id);
       await this.refresh();
@@ -544,6 +606,18 @@ export const store = {
       return;
     }
     writeTrash([]);
+  },
+
+  async saveImage(noteId: string, file: File): Promise<string | null> {
+    if (!noteId || !file) return null;
+    if (file.size > DESKTOP_IMAGE_MAX) return null;
+    if (desktop && window.flashWriteBytes) {
+      const name = imageFileName(noteId, extForImage(file), imageStamp());
+      const writePath = imageWritePath(noteId, name);
+      const saved = await window.flashWriteBytes(writePath, bytesToBase64(new Uint8Array(await file.arrayBuffer())));
+      return imageSrcInNote(saved || writePath, noteId);
+    }
+    return compressForBrowser(file);
   },
 
   async pickDir(): Promise<string | null> {
