@@ -975,6 +975,12 @@ html.focus-mode .main:has(.topbar:focus-within)::before {
   color: var(--accent);
 }
 
+.md-editor .vditor-reset img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
 .md-editor .vditor-reset code,
 .md-editor .vditor-reset pre {
   background: var(--code-bg) !important;

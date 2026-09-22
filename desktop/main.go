@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -95,6 +96,33 @@ func hasFlag(args []string, name string) bool {
 	return false
 }
 
+func serveNoteAsset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	rel := strings.TrimPrefix(r.URL.Path, "/~notes/")
+	if unescaped, err := url.PathUnescape(rel); err == nil {
+		rel = unescaped
+	}
+	rel = strings.TrimPrefix(filepath.ToSlash(rel), "/")
+	if rel == "" || strings.Contains(rel, "..") {
+		http.NotFound(w, r)
+		return
+	}
+	abs, err := absInRoot(rel)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, abs)
+}
+
 func runApp() error {
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	sub, err := fs.Sub(distFS, "dist")
@@ -112,7 +140,10 @@ func runApp() error {
 	defer ln.Close()
 	uiURL := "http://" + ln.Addr().String() + "/"
 
-	srv := &http.Server{Handler: http.FileServer(http.FS(sub))}
+	mux := http.NewServeMux()
+	mux.Handle("/~notes/", http.HandlerFunc(serveNoteAsset))
+	mux.Handle("/", http.FileServer(http.FS(sub)))
+	srv := &http.Server{Handler: mux}
 	go func() { _ = srv.Serve(ln) }()
 
 	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), productDir, "webview2")

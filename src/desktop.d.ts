@@ -18,5 +18,6 @@ declare global {
     flashPurge?: (id: string) => Promise<void>;
     flashEmptyTrash?: () => Promise<void>;
     flashMove?: (rel: string, destDir: string) => Promise<string>;
+    flashWriteBytes?: (rel: string, base64: string) => Promise<string>;
   }
 }

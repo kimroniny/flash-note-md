@@ -274,7 +274,7 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
         <div><dt><kbd>Ctrl</kbd><kbd>S</kbd></dt><dd>立即保存</dd></div>
         <div><dt><kbd>Enter</kbd></dt><dd>下一段；列表中继续一条</dd></div>
       </dl>
-      <p class="hint">点目录里的笔记会在顶栏新开标签。顶栏按钮可在记住的浅色和深色主题之间切换。拖动目录边缘调整宽度。浏览器里可拖动笔记排序；安装版可把笔记拖进文件夹。删除后可在提示里撤销。</p>
+      <p class="hint">点目录里的笔记会在顶栏新开标签。顶栏按钮可在记住的浅色和深色主题之间切换。Ctrl+V 或拖入可插入截图，安装版会存到笔记旁的 images 文件夹。拖动目录边缘调整宽度。浏览器里可拖动笔记排序；安装版可把笔记拖进文件夹。删除后可在提示里撤销。</p>
     </div>`;
 
   const settingsSheet = el("div", { class: "sheet settings-sheet", role: "dialog", "aria-label": "设置" });
@@ -1023,6 +1023,21 @@ async function startAppAsync(host: HTMLElement): Promise<void> {
   editor = mountEditor(editorRoot, {
     onChange() {
       persist(false);
+    },
+    currentNoteId() {
+      return currentId;
+    },
+    async saveImage(file) {
+      if (!currentId) return null;
+      persist(true);
+      try {
+        const src = await store.saveImage(currentId, file);
+        if (!src) showToast("图片太大或无法保存");
+        return src;
+      } catch {
+        showToast("无法保存图片");
+        return null;
+      }
     },
   });
 

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -167,7 +168,7 @@ func uniqueMarkdownName(dir, base string) string {
 
 func skipDirName(name string) bool {
 	n := strings.ToLower(name)
-	return n == ".git" || n == "node_modules" || strings.HasPrefix(name, ".")
+	return n == ".git" || n == "node_modules" || n == "images" || strings.HasPrefix(name, ".")
 }
 
 func listTree() ([]fileNode, error) {
@@ -242,6 +243,44 @@ func readNoteFile(rel string) (string, error) {
 		return "", err
 	}
 	return string(raw), nil
+}
+
+func writeAssetFile(rel, b64 string) (string, error) {
+	rel = filepath.ToSlash(filepath.Clean(strings.TrimSpace(rel)))
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" || rel == "." {
+		return "", fmt.Errorf("路径无效")
+	}
+	if strings.EqualFold(strings.SplitN(rel, "/", 2)[0], trashDirName) {
+		return "", fmt.Errorf("路径无效")
+	}
+	ext := strings.ToLower(filepath.Ext(rel))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+	default:
+		return "", fmt.Errorf("不支持的图片类型")
+	}
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "", fmt.Errorf("图片数据无效")
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("图片为空")
+	}
+	if len(data) > 8*1024*1024 {
+		return "", fmt.Errorf("图片太大")
+	}
+	abs, err := absInRoot(rel)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(abs, data, 0o644); err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 func writeNoteFile(rel, content string) error {
@@ -642,6 +681,7 @@ func bindDesktop(w webview2.WebView) error {
 		{"flashPurge", func(id string) error { return purgeTrash(id) }},
 		{"flashEmptyTrash", func() error { return emptyTrash() }},
 		{"flashMove", func(rel, destDir string) (string, error) { return moveNoteFile(rel, destDir) }},
+		{"flashWriteBytes", func(rel, b64 string) (string, error) { return writeAssetFile(rel, b64) }},
 	}
 	for _, b := range binds {
 		if err := w.Bind(b.name, b.fn); err != nil {

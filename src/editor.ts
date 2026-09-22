@@ -1,6 +1,7 @@
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import "vditor/dist/js/i18n/zh_CN.js";
+import { displayMarkdown, imageAlt, markdownImage, resolveAssetUrl, storageMarkdown } from "./images.ts";
 
 export type EditorHandle = {
   getMarkdown(): string;
@@ -19,6 +20,8 @@ export type FormatCmd = "bold" | "italic" | "underline" | "h1" | "h2" | "h3" | "
 
 type Options = {
   onChange: () => void;
+  currentNoteId: () => string;
+  saveImage: (file: File) => Promise<string | null>;
 };
 
 const DARK_THEMES = new Set(["ink", "ocean", "contrast"]);
@@ -192,6 +195,69 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
 
   document.addEventListener("keydown", onFormatKey, true);
 
+  const imageFilesFromList = (list: FileList | File[] | null | undefined): File[] =>
+    [...(list ?? [])].filter((f) => f.type.startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
+
+  const imageFilesFromClipboard = (data: DataTransfer | null): File[] => {
+    if (!data) return [];
+    const fromFiles = imageFilesFromList(data.files);
+    if (fromFiles.length) return fromFiles;
+    const out: File[] = [];
+    for (const item of data.items) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) out.push(file);
+      }
+    }
+    return out;
+  };
+
+  const shownImageSrc = (src: string): string => {
+    if (/^(https?:|data:|\/~notes\/|#)/i.test(src)) return src;
+    const id = options.currentNoteId();
+    return id ? resolveAssetUrl(src, id) : src;
+  };
+
+  const insertImages = async (files: File[]) => {
+    if (!instance || destroyed || !files.length) return;
+    for (const file of files) {
+      try {
+        const src = await options.saveImage(file);
+        if (!src) continue;
+        instance.focus();
+        instance.insertMD(markdownImage(imageAlt(file), shownImageSrc(src)));
+      } catch {
+        /* skip broken images */
+      }
+    }
+    if (ready) options.onChange();
+  };
+
+  const onPaste = (event: ClipboardEvent) => {
+    const files = imageFilesFromClipboard(event.clipboardData);
+    if (!files.length || destroyed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void insertImages(files);
+  };
+
+  const onDragOver = (event: DragEvent) => {
+    if (![...(event.dataTransfer?.types ?? [])].includes("Files")) return;
+    event.preventDefault();
+  };
+
+  const onDrop = (event: DragEvent) => {
+    const files = imageFilesFromList(event.dataTransfer?.files);
+    if (!files.length || destroyed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void insertImages(files);
+  };
+
+  host.addEventListener("paste", onPaste, true);
+  host.addEventListener("dragover", onDragOver, true);
+  host.addEventListener("drop", onDrop, true);
+
   instance = new Vditor(host, {
     cdn,
     mode: "ir",
@@ -264,17 +330,19 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
 
   return {
     getMarkdown() {
-      if (queued !== null) return queued;
-      if (ready && instance) return instance.getValue();
-      return "";
+      const raw = queued !== null ? queued : ready && instance ? instance.getValue() : "";
+      const id = options.currentNoteId();
+      return id ? storageMarkdown(raw, id) : raw;
     },
     setMarkdown(md: string, focusEnd = false) {
+      const id = options.currentNoteId();
+      const next = id ? displayMarkdown(md, id) : md;
       if (!ready || !instance) {
-        queued = md;
+        queued = next;
         wantFocus = focusEnd || wantFocus;
         return;
       }
-      instance.setValue(md, true);
+      instance.setValue(next, true);
       findQuery = "";
       findIndex = -1;
       try {
@@ -394,6 +462,9 @@ export function mountEditor(root: HTMLElement, options: Options): EditorHandle {
     destroy() {
       destroyed = true;
       document.removeEventListener("keydown", onFormatKey, true);
+      host.removeEventListener("paste", onPaste, true);
+      host.removeEventListener("dragover", onDragOver, true);
+      host.removeEventListener("drop", onDrop, true);
       instance?.destroy();
       instance = null;
       root.replaceChildren();
